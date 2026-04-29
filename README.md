@@ -37,7 +37,7 @@ const result = applyAnchoredEdits({
 
 ## Design Notes
 
-See [`docs/PORTING.md`](docs/PORTING.md).
+See [`docs/PORTING.md`](docs/PORTING.md). Current status is in [`docs/STATUS.md`](docs/STATUS.md).
 
 ## CLI
 

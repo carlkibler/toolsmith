@@ -16,5 +16,8 @@ Get the edit primitives right first:
 
 - `npm test` — unit tests
 - `npm run check` — syntax check + tests
+- `npm run test:harnesses` — reusable local harness checks
+- `./scripts/test-harnesses.sh --skip-local --live-codex` — live Codex MCP check in a disposable workspace
+- `./scripts/test-harnesses.sh --skip-local --live-claude` — live Claude MCP check in a disposable workspace
 
-Keep the core boring and dependency-light. Harness adapters should wrap this package rather than contaminating it.
+Keep the core boring and dependency-light. Harness adapters should wrap this package rather than contaminating it. Update `docs/STATUS.md` when behavior, coverage, or caveats change.
