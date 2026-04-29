@@ -7,6 +7,7 @@ import { applyAnchoredEdits } from "./edit.js"
 import { searchAnchored } from "./search.js"
 import { fileSkeleton, getFunction } from "./structure.js"
 import { symbolReplace } from "./symbol-replace.js"
+import { makeTelemetry } from "./telemetry.js"
 
 const DEFAULT_MAX_BYTES = 512 * 1024
 
@@ -66,7 +67,11 @@ export class WorkspaceTools {
       await fs.writeFile(absolute, result.content, "utf8")
     }
 
-    return { ...result, dryRun }
+    return {
+      ...result,
+      dryRun,
+      telemetry: makeTelemetry({ operation: "symbol_replace", fullContent: before, requestPayload: { path: relative, sessionId, name, search, replacement, regex, replaceAll, caseSensitive, dryRun }, responseText: JSON.stringify({ ok: result.ok, errors: result.errors, matches: result.matches }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
+    }
   }
 
   async edit({ path: inputPath, sessionId = "default", edits, atomic = true, dryRun = false }) {
@@ -87,6 +92,7 @@ export class WorkspaceTools {
       changed,
       beforeHash: contentHash(before),
       afterHash: contentHash(result.content),
+      telemetry: makeTelemetry({ operation: "anchored_edit", fullContent: before, requestPayload: { path: relative, sessionId, edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
     }
   }
 
@@ -117,6 +123,7 @@ export class WorkspaceTools {
           changed,
           beforeHash: contentHash(before),
           afterHash: contentHash(result.content),
+          telemetry: makeTelemetry({ operation: "anchored_edit_many:file", fullContent: before, requestPayload: { path: relative, sessionId: file.sessionId || sessionId, edits: file.edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
         }
         prepared.push({ absolute, item })
         if (!result.ok) errors.push(...result.errors.map((error) => `${relative}: ${error}`))

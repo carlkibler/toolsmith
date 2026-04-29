@@ -1,5 +1,6 @@
 import { contentHash } from "./hash.js"
 import { formatAnchoredLine, splitLines } from "./anchors.js"
+import { makeTelemetry } from "./telemetry.js"
 
 export function fileSkeleton({ path, content, store, sessionId, maxLines = 200 }) {
   if (!store) throw new Error("fileSkeleton requires an AnchorStore")
@@ -15,7 +16,7 @@ export function fileSkeleton({ path, content, store, sessionId, maxLines = 200 }
   }
 
   const text = formatSkeletonText({ path, content, entries, truncated: entries.length >= maxLines })
-  return { path, fileHash: contentHash(content), entries, maxLines, text }
+  return { path, fileHash: contentHash(content), entries, maxLines, text, telemetry: makeTelemetry({ operation: "file_skeleton", fullContent: content, requestPayload: { path, sessionId, maxLines }, responseText: text, anchors: entries.map((entry) => entry.anchor) }) }
 }
 
 export function getFunction({ path, content, store, sessionId, name, contextLines = 0, maxLines = 400 }) {
@@ -25,7 +26,8 @@ export function getFunction({ path, content, store, sessionId, name, contextLine
   const anchors = store.reconcile(path, content, { sessionId })
   const range = findSymbolRange(lines, name)
   if (!range) {
-    return { path, fileHash: contentHash(content), name, found: false, text: `[File: ${path}] [File Hash: ${contentHash(content)}]\n(symbol not found: ${name})` }
+    const text = `[File: ${path}] [File Hash: ${contentHash(content)}]\n(symbol not found: ${name})`
+    return { path, fileHash: contentHash(content), name, found: false, text, telemetry: makeTelemetry({ operation: "get_function", fullContent: content, requestPayload: { path, sessionId, name, contextLines, maxLines }, responseText: text }) }
   }
 
   const { startIndex, endIndex } = range
@@ -33,6 +35,7 @@ export function getFunction({ path, content, store, sessionId, name, contextLine
   const end = Math.min(lines.length, Math.min(endIndex + 1 + contextLines, start + maxLines))
   const body = lines.slice(start, end).map((line, offset) => formatAnchoredLine(anchors[start + offset], line)).join("\n")
   const truncated = end < endIndex + 1 + contextLines
+  const text = `[File: ${path}] [File Hash: ${contentHash(content)}] [Symbol: ${name}] [Lines: ${start + 1}-${end}${truncated ? "+" : ""}]\n${body}`
   return {
     path,
     fileHash: contentHash(content),
@@ -43,7 +46,8 @@ export function getFunction({ path, content, store, sessionId, name, contextLine
     symbolStartLine: startIndex + 1,
     symbolEndLine: endIndex + 1,
     truncated,
-    text: `[File: ${path}] [File Hash: ${contentHash(content)}] [Symbol: ${name}] [Lines: ${start + 1}-${end}${truncated ? "+" : ""}]\n${body}`,
+    text,
+    telemetry: makeTelemetry({ operation: "get_function", fullContent: content, requestPayload: { path, sessionId, name, contextLines, maxLines }, responseText: text, anchors: anchors.slice(start, end) }),
   }
 }
 

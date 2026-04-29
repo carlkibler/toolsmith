@@ -27,6 +27,7 @@ test("fileSkeleton returns anchored declaration outline", () => {
   assert(result.entries.some((entry) => entry.text === "function alpha() {" && entry.kind === "function"))
   assert(result.entries.some((entry) => entry.text === "class Gamma {" && entry.kind === "class"))
   assert.match(result.text, new RegExp(`${result.entries[0].anchor}${ANCHOR_DELIMITER}`))
+  assert.equal(result.telemetry.operation, "file_skeleton")
 })
 
 test("getFunction returns anchored range for named JavaScript symbol", () => {
@@ -38,6 +39,7 @@ test("getFunction returns anchored range for named JavaScript symbol", () => {
   assert.equal(result.symbolEndLine, 9)
   assert.match(result.text, /§const beta = \(value\) => \{/)
   assert.match(result.text, /§  return value \+ 1/)
+  assert.equal(result.telemetry.operation, "get_function")
 })
 
 test("getFunction returns not found without throwing", () => {

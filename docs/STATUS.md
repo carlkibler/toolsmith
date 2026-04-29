@@ -16,6 +16,7 @@ Implemented pieces:
   - compact anchored single-file search
   - compact structural reads with `file_skeleton` and `get_function`
   - safe symbol-scoped replacements with `symbol_replace`
+  - lightweight telemetry for bytes/tokens avoided, request/response size, anchor count, and edit deltas
   - atomic single-file batched edits
   - atomic multi-file edit orchestration in filesystem wrapper
   - unchanged-line anchor preservation across nearby edits
@@ -49,7 +50,7 @@ Implemented pieces:
 
 Local automated checks:
 
-- `npm run check` passes: 23 tests
+- `npm run check` passes: 24 tests
 - `npm pack --dry-run` succeeds and includes `bin/`, `docs/`, `extensions/`, `scripts/`, and `src/`
 - `npm run test:harnesses -- --skip-local` succeeds
 
@@ -91,10 +92,11 @@ Artifact logs from the latest validation runs live under `~/dev/agent-notes/dira
 - `af3096c` Add project status notes
 - `0c47cd3` Add anchored search and clearer edit guidance
 - `c66dc00` Add structural read tools
+- `071ee5e` Add symbol-scoped replace tool
 
 ## Next good steps
 
-1. Add token-saving telemetry: bytes/tokens avoided, anchor map size, edit payload size, and old-vs-new tool-call comparison.
+1. Add a CLI/report mode to compare old-vs-new tool-call payloads on larger real files.
 2. Add a real Pi.dev live harness once the installed Pi CLI/tool-extension invocation is confirmed.
 3. Compare `symbol_replace` vs anchored edit behavior on larger real files.
 4. Decide which tokenlean/cozempic pieces belong here, keeping `src/` harness-neutral.

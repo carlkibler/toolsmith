@@ -1,5 +1,6 @@
 import { contentHash } from "./hash.js"
 import { formatAnchoredLine, splitLines } from "./anchors.js"
+import { makeTelemetry } from "./telemetry.js"
 
 export function searchAnchored({ path, content, store, sessionId, query, regex = false, caseSensitive = false, contextLines = 1, maxMatches = 20 }) {
   if (!store) throw new Error("searchAnchored requires an AnchorStore")
@@ -25,7 +26,7 @@ export function searchAnchored({ path, content, store, sessionId, query, regex =
   }
 
   const text = formatSearchText({ path, content, matches, truncated: countMatches(lines, matcher) > matches.length })
-  return { path, fileHash: contentHash(content), query, regex, caseSensitive, contextLines, maxMatches, matches, text }
+  return { path, fileHash: contentHash(content), query, regex, caseSensitive, contextLines, maxMatches, matches, text, telemetry: makeTelemetry({ operation: "anchored_search", fullContent: content, requestPayload: { path, sessionId, query, regex, caseSensitive, contextLines, maxMatches }, responseText: text, anchors: matches.map((match) => match.anchor) }) }
 }
 
 function makeMatcher(query, { regex, caseSensitive }) {

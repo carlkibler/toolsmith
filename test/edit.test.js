@@ -12,6 +12,8 @@ test("readAnchored returns file hash and anchored lines", () => {
   assert.match(read.text, /^\[File Hash: [a-f0-9]{8}\]/)
   assert.equal(read.anchors.length, 2)
   assert.match(read.text, new RegExp(`${read.anchors[0]}${ANCHOR_DELIMITER}one`))
+  assert.equal(read.telemetry.operation, "anchored_read")
+  assert.equal(read.telemetry.anchorCount, 2)
 })
 
 test("applyAnchoredEdits replaces exact anchored range", () => {
@@ -132,6 +134,8 @@ test("searchAnchored returns compact anchored snippets", () => {
   assert.match(result.text, /\[Matches: 2\]/)
   assert.match(result.text, new RegExp(`${result.matches[0].anchor}${ANCHOR_DELIMITER}beta target`))
   assert.equal(result.matches[0].line, 2)
+  assert.equal(result.telemetry.operation, "anchored_search")
+  assert(result.telemetry.estimatedTokensAvoided >= 0)
 })
 
 test("edit validation suggests exact full anchor reference", () => {

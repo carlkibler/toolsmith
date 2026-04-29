@@ -8,6 +8,7 @@ The first goal is a small, dependency-light core that other harnesses can wrap:
 - apply exact, anchor-targeted edits
 - batch independent edits atomically
 - preserve anchors across unchanged lines after edits
+- report lightweight telemetry for bytes/tokens avoided and edit payload size
 
 Future wrappers can expose this through Pi.dev extensions, MCP servers for Claude/Codex, or other agent harnesses.
 
@@ -100,6 +101,10 @@ Registered tools:
 - `pi_anchored_edit`
 - `pi_anchored_edit_many`
 - `pi_anchored_status`
+
+## Telemetry
+
+Tool results include a `telemetry` object with byte counts, rough token estimates, anchor counts, edit deltas, and estimated tokens avoided versus reading the full file. Token estimates intentionally use a simple local heuristic for portable trend tracking, not billing-grade accounting.
 
 ## Verification
 
