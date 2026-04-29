@@ -64,6 +64,10 @@ test("MCP server lists and calls anchored tools", async () => {
     const tools = await client.listTools()
     assert(tools.tools.some((tool) => tool.name === "anchored_read"))
     assert(tools.tools.some((tool) => tool.name === "anchored_edit"))
+    assert(tools.tools.some((tool) => tool.name === "anchored_search"))
+
+    const searchResult = await client.callTool({ name: "anchored_search", arguments: { path: "demo.txt", query: "green", sessionId: "mcp", contextLines: 0 } })
+    assert.match(searchResult.content[0].text, /§green/)
 
     const readResult = await client.callTool({ name: "anchored_read", arguments: { path: "demo.txt", sessionId: "mcp" } })
     const readText = readResult.content[0].text

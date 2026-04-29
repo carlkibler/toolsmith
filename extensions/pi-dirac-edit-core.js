@@ -26,7 +26,7 @@ export default function diracEditCorePiExtension(pi) {
     promptSnippet: "Read file content with stable line anchors for precise low-token edits",
     promptGuidelines: [
       "For multi-location edits, prefer pi_anchored_read followed by one batched pi_anchored_edit call.",
-      "When using pi_anchored_edit, include the full Anchor§line content reference exactly as returned.",
+      "When using pi_anchored_edit, include the full Anchor§line content reference exactly as returned. For one-line replace, repeat it as endAnchor.",
     ],
     executionMode: "parallel",
     parameters: Type.Object({
@@ -42,9 +42,35 @@ export default function diracEditCorePiExtension(pi) {
   })
 
   pi.registerTool({
+    name: "pi_anchored_search",
+    label: "anchored search",
+    description: "Search one file and return compact anchored snippets for precise low-token edits.",
+    promptSnippet: "Search file content and return matching lines with stable edit anchors",
+    promptGuidelines: [
+      "Prefer pi_anchored_search over full pi_anchored_read when you know the text or symbol to edit.",
+      "Copy the complete Anchor§line reference exactly into pi_anchored_edit.",
+    ],
+    executionMode: "parallel",
+    parameters: Type.Object({
+      path: Type.String({ description: "Workspace-relative file path to search." }),
+      query: Type.String({ description: "Literal search text by default, or regex pattern when regex is true." }),
+      sessionId: Type.Optional(Type.String({ description: "Anchor session id. Use same value for search/edit." })),
+      regex: Type.Optional(Type.Boolean({ description: "Treat query as a JavaScript regex. Default false." })),
+      caseSensitive: Type.Optional(Type.Boolean({ description: "Case-sensitive matching. Default false." })),
+      contextLines: Type.Optional(Type.Number({ minimum: 0, maximum: 20 })),
+      maxMatches: Type.Optional(Type.Number({ minimum: 1, maximum: 200 })),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const result = await toolsFor(ctx.cwd).search(params)
+      return { content: [{ type: "text", text: result.text }], details: result }
+    },
+  })
+
+
+  pi.registerTool({
     name: "pi_anchored_edit",
     label: "anchored edit",
-    description: "Apply exact anchor-targeted edits atomically. Use full Anchor§line references from pi_anchored_read.",
+    description: "Apply exact anchor-targeted edits atomically. Use full Anchor§line references from pi_anchored_read or pi_anchored_search. For replace, endAnchor is required; repeat anchor for one-line replace.",
     promptSnippet: "Apply exact batched edits by stable line anchors",
     promptGuidelines: [
       "Batch all non-overlapping edits to the same file into one pi_anchored_edit call.",

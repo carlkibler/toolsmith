@@ -1,5 +1,6 @@
 import {
   ANCHOR_DELIMITER,
+  formatAnchoredLine,
   splitAnchorReference,
   splitLines,
   stripAnchors,
@@ -81,9 +82,9 @@ function resolveAnchor(field, reference, lines, anchors, editIndex) {
 
   const index = anchors.indexOf(anchor)
   if (index === -1) return { error: `${field} "${anchor}" not found in current anchors` }
-  if (content === null) return { error: `${field} "${anchor}" must include exact line content after ${ANCHOR_DELIMITER}` }
+  if (content === null) return { error: `${field} "${anchor}" must include exact line content after ${ANCHOR_DELIMITER}; use ${JSON.stringify(formatAnchoredLine(anchor, lines[index]))}` }
   if (content.includes("\n") || content.includes("\r")) return { error: `${field} "${anchor}" must reference exactly one line` }
-  if (lines[index] !== content) return { error: `${field} "${anchor}" content mismatch; expected ${JSON.stringify(lines[index])}, got ${JSON.stringify(content)}` }
+  if (lines[index] !== content) return { error: `${field} "${anchor}" content mismatch; expected full reference ${JSON.stringify(formatAnchoredLine(anchor, lines[index]))}, got line content ${JSON.stringify(content)}` }
 
   return { anchor, index }
 }

@@ -4,6 +4,7 @@ import { AnchorStore } from "./anchors.js"
 import { contentHash } from "./hash.js"
 import { readAnchored } from "./read.js"
 import { applyAnchoredEdits } from "./edit.js"
+import { searchAnchored } from "./search.js"
 
 const DEFAULT_MAX_BYTES = 512 * 1024
 
@@ -29,6 +30,14 @@ export class WorkspaceTools {
     await this.#assertReadableSize(absolute)
     const content = await fs.readFile(absolute, "utf8")
     return readAnchored({ path: relative, content, store: this.store, sessionId, startLine, endLine })
+  }
+
+
+  async search({ path: inputPath, sessionId = "default", query, regex = false, caseSensitive = false, contextLines = 1, maxMatches = 20 }) {
+    const { absolute, relative } = this.resolvePath(inputPath)
+    await this.#assertReadableSize(absolute)
+    const content = await fs.readFile(absolute, "utf8")
+    return searchAnchored({ path: relative, content, store: this.store, sessionId, query, regex, caseSensitive, contextLines, maxMatches })
   }
 
   async edit({ path: inputPath, sessionId = "default", edits, atomic = true, dryRun = false }) {

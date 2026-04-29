@@ -14,6 +14,7 @@ test("Pi extension registers anchored tools and executes them", async () => {
   extension({ registerTool(tool) { registered.set(tool.name, tool) } })
 
   assert(registered.has("pi_anchored_read"))
+  assert(registered.has("pi_anchored_search"))
   assert(registered.has("pi_anchored_edit"))
   assert(registered.has("pi_anchored_edit_many"))
   assert(registered.has("pi_anchored_status"))
@@ -22,8 +23,8 @@ test("Pi extension registers anchored tools and executes them", async () => {
   await fs.writeFile(path.join(cwd, "demo.txt"), "cat\ndog\neel", "utf8")
   const ctx = { cwd }
 
-  const read = await registered.get("pi_anchored_read").execute("call-1", { path: "demo.txt", sessionId: "pi" }, undefined, undefined, ctx)
-  const dogLine = read.content[0].text.split("\n").find((line) => line.endsWith("§dog"))
+  const search = await registered.get("pi_anchored_search").execute("call-1", { path: "demo.txt", query: "dog", sessionId: "pi", contextLines: 0 }, undefined, undefined, ctx)
+  const dogLine = search.content[0].text.split("\n").find((line) => line.endsWith("§dog"))
   assert(dogLine)
 
   const edit = await registered.get("pi_anchored_edit").execute("call-2", {

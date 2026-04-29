@@ -45,6 +45,9 @@ See [`docs/PORTING.md`](docs/PORTING.md). Current status is in [`docs/STATUS.md`
 # Read with anchors
 npx dirac-edit-core read src/app.js
 
+# Search with compact anchored snippets
+npx dirac-edit-core search src/app.js oldName --context 2
+
 # Apply edits from JSON
 npx dirac-edit-core edit src/app.js --edits edits.json --dry-run
 ```
@@ -62,6 +65,7 @@ npx dirac-edit-core mcp
 Tools:
 
 - `anchored_read` — returns `[File Hash: ...]` and `Anchor§line` content.
+- `anchored_search` — returns compact matching snippets with `Anchor§line` references.
 - `anchored_edit` — applies exact batched edits; stale or inexact anchors fail before writing.
 - `anchored_edit_many` — validates and applies exact edits across multiple files.
 - `anchored_edit_status` — smoke-test/status tool.
@@ -81,6 +85,7 @@ pi --offline --no-builtin-tools -e ./extensions/pi-dirac-edit-core.js --tools pi
 Registered tools:
 
 - `pi_anchored_read`
+- `pi_anchored_search`
 - `pi_anchored_edit`
 - `pi_anchored_edit_many`
 - `pi_anchored_status`

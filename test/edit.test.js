@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { ANCHOR_DELIMITER, AnchorStore, applyAnchoredEdits, readAnchored, stripAnchors } from "../src/index.js"
+import { ANCHOR_DELIMITER, AnchorStore, applyAnchoredEdits, readAnchored, searchAnchored, stripAnchors } from "../src/index.js"
 
 function anchoredLine(read, index, content) {
   return `${read.anchors[index]}${ANCHOR_DELIMITER}${content}`
@@ -119,4 +119,34 @@ test("overlapping replacements abort", () => {
 
 test("stripAnchors removes generated anchors from replacement text", () => {
   assert.equal(stripAnchors("Aabc123§hello\nworld"), "hello\nworld")
+})
+
+
+test("searchAnchored returns compact anchored snippets", () => {
+  const store = new AnchorStore()
+  const content = "alpha\nbeta target\ngamma\ntarget delta"
+
+  const result = searchAnchored({ path: "a.txt", content, store, sessionId: "s", query: "target", contextLines: 0 })
+
+  assert.equal(result.matches.length, 2)
+  assert.match(result.text, /\[Matches: 2\]/)
+  assert.match(result.text, new RegExp(`${result.matches[0].anchor}${ANCHOR_DELIMITER}beta target`))
+  assert.equal(result.matches[0].line, 2)
+})
+
+test("edit validation suggests exact full anchor reference", () => {
+  const store = new AnchorStore()
+  const content = "one\ntwo"
+  const read = readAnchored({ path: "a.txt", content, store, sessionId: "s" })
+
+  const result = applyAnchoredEdits({
+    path: "a.txt",
+    content,
+    store,
+    sessionId: "s",
+    edits: [{ type: "replace", anchor: read.anchors[1], endAnchor: read.anchors[1], text: "TWO" }],
+  })
+
+  assert.equal(result.ok, false)
+  assert.match(result.errors[0], new RegExp(`${read.anchors[1]}${ANCHOR_DELIMITER}two`))
 })

@@ -9,3 +9,4 @@ export {
 } from "./anchors.js"
 export { readAnchored } from "./read.js"
 export { applyAnchoredEdits } from "./edit.js"
+export { searchAnchored } from "./search.js"

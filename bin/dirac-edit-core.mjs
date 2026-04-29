@@ -9,6 +9,7 @@ const tools = new WorkspaceTools({ cwd: process.cwd() })
 function usage() {
   console.error(`Usage:
   dirac-edit-core read <path> [--start N] [--end N] [--session ID]
+  dirac-edit-core search <path> <query> [--regex] [--case-sensitive] [--context N] [--max N] [--session ID]
   dirac-edit-core edit <path> --edits edits.json [--dry-run] [--session ID]
   dirac-edit-core edit-many files.json [--dry-run] [--session ID]
   dirac-edit-core mcp
@@ -30,6 +31,19 @@ try {
       sessionId: option("--session") || "cli",
       startLine: option("--start") ? Number(option("--start")) : undefined,
       endLine: option("--end") ? Number(option("--end")) : undefined,
+    })
+    console.log(result.text)
+  } else if (command === "search") {
+    const target = args[0]
+    const query = args[1]
+    const result = await tools.search({
+      path: target,
+      query,
+      sessionId: option("--session") || "cli",
+      regex: args.includes("--regex"),
+      caseSensitive: args.includes("--case-sensitive"),
+      contextLines: option("--context") ? Number(option("--context")) : undefined,
+      maxMatches: option("--max") ? Number(option("--max")) : undefined,
     })
     console.log(result.text)
   } else if (command === "edit") {

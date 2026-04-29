@@ -15,7 +15,7 @@ Implemented as `bin/dirac-edit-core-mcp.mjs`. Expose tools that Claude Code and 
 
 - `anchored_read`
 - `anchored_edit`
-- `anchored_search`
+- `anchored_search` - implemented for single-file compact anchored snippets
 - later: `symbol_replace`, `file_skeleton`, `get_function`
 
 ## Phase 3: Pi.dev Adapter
@@ -24,7 +24,7 @@ Implemented initially as `extensions/pi-dirac-edit-core.js`. A Pi package can fe
 
 - override/add read and edit tools
 - route multi-file edit batches through this core
-- expose savings telemetry if useful
+- expose compact anchored search and savings telemetry if useful
 
 ## Later Imports
 
