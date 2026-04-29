@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ARTIFACT_ROOT="${DIRAC_EDIT_CORE_ARTIFACT_DIR:-$HOME/dev/agent-notes/dirac-edit-core}"
+ARTIFACT_ROOT="${TOOLSMITH_ARTIFACT_DIR:-${DIRAC_EDIT_CORE_ARTIFACT_DIR:-$HOME/dev/agent-notes/toolsmith}}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 OUT="$ARTIFACT_ROOT/harness-$STAMP"
 RUN_LIVE_CODEX=0
@@ -15,8 +15,8 @@ Usage: scripts/test-harnesses.sh [--live] [--live-codex] [--live-claude] [--skip
 Default checks are cheap and non-model:
   - npm run check
   - npm pack --dry-run
-  - codex mcp get dirac-edit-core
-  - claude mcp get dirac-edit-core
+  - codex mcp get toolsmith
+  - claude mcp get toolsmith
 
 Live checks use disposable temp workspaces and mutate only those temp files:
   --live         run both Codex and Claude live MCP edit checks
@@ -24,7 +24,7 @@ Live checks use disposable temp workspaces and mutate only those temp files:
   --live-claude  run Claude live MCP edit check
   --skip-local   skip npm/check/package checks
 
-Artifacts are written to ~/dev/agent-notes/dirac-edit-core/harness-<timestamp>/.
+Artifacts are written to ~/dev/agent-notes/toolsmith/harness-<timestamp>/.
 USAGE
 }
 
@@ -100,14 +100,14 @@ fi
 
 if command -v codex >/dev/null 2>&1; then
   log_step "codex MCP config"
-  codex mcp get dirac-edit-core 2>&1 | tee "$OUT/codex-mcp-get.log"
+  codex mcp get toolsmith 2>&1 | tee "$OUT/codex-mcp-get.log" || true
 else
   echo "codex not found" | tee "$OUT/codex-mcp-get.log"
 fi
 
 if command -v claude >/dev/null 2>&1; then
   log_step "claude MCP config"
-  claude mcp get dirac-edit-core 2>&1 | tee "$OUT/claude-mcp-get.log"
+  claude mcp get toolsmith 2>&1 | tee "$OUT/claude-mcp-get.log" || true
 else
   echo "claude not found" | tee "$OUT/claude-mcp-get.log"
 fi
@@ -120,17 +120,17 @@ if [[ "$RUN_LIVE_CODEX" -eq 1 ]]; then
   log_step "codex live MCP edit"
   CODEX_WS="$(seed_workspace codex)"
   CODEX_PROMPT=$(cat <<'EOF'
-Use the dirac-edit-core MCP server. First use file_skeleton on code.js, then use symbol_replace to change 'return 1' to 'return 2' inside the demo symbol. Then use anchored_search and anchored_edit to change sample.txt line beta to BETA. Do not use shell commands, anchored_read, or built-in file editing tools for mutation. Report final contents.
+Use the toolsmith MCP server. First use file_skeleton on code.js, then use symbol_replace to change 'return 1' to 'return 2' inside the demo symbol. Then use anchored_search and anchored_edit to change sample.txt line beta to BETA. Do not use shell commands, anchored_read, or built-in file editing tools for mutation. Report final contents.
 EOF
 )
   codex exec --json --dangerously-bypass-approvals-and-sandbox -C "$CODEX_WS" --skip-git-repo-check "$CODEX_PROMPT" \
     2>&1 | tee "$OUT/codex-live.jsonl"
   assert_file_beta_changed "$CODEX_WS/sample.txt"
   grep -q 'return 2' "$CODEX_WS/code.js"
-  grep -q '"server":"dirac-edit-core","tool":"file_skeleton"' "$OUT/codex-live.jsonl"
-  grep -q '"server":"dirac-edit-core","tool":"symbol_replace"' "$OUT/codex-live.jsonl"
-  grep -q '"server":"dirac-edit-core","tool":"anchored_search"' "$OUT/codex-live.jsonl"
-  grep -q '"server":"dirac-edit-core","tool":"anchored_edit"' "$OUT/codex-live.jsonl"
+  grep -q '"server":"toolsmith","tool":"file_skeleton"' "$OUT/codex-live.jsonl"
+  grep -q '"server":"toolsmith","tool":"symbol_replace"' "$OUT/codex-live.jsonl"
+  grep -q '"server":"toolsmith","tool":"anchored_search"' "$OUT/codex-live.jsonl"
+  grep -q '"server":"toolsmith","tool":"anchored_edit"' "$OUT/codex-live.jsonl"
 fi
 
 if [[ "$RUN_LIVE_CLAUDE" -eq 1 ]]; then
@@ -141,7 +141,7 @@ if [[ "$RUN_LIVE_CLAUDE" -eq 1 ]]; then
   log_step "claude live MCP edit"
   CLAUDE_WS="$(seed_workspace claude)"
   CLAUDE_PROMPT=$(cat <<'EOF'
-Use the dirac-edit-core MCP server. First use file_skeleton on code.js, then use symbol_replace to change 'return 1' to 'return 2' inside the demo symbol. Then use anchored_search and anchored_edit to change sample.txt line beta to BETA. Do not use Bash, anchored_read, or built-in Edit/Write for mutation. Report final contents.
+Use the toolsmith MCP server. First use file_skeleton on code.js, then use symbol_replace to change 'return 1' to 'return 2' inside the demo symbol. Then use anchored_search and anchored_edit to change sample.txt line beta to BETA. Do not use Bash, anchored_read, or built-in Edit/Write for mutation. Report final contents.
 EOF
 )
   (
@@ -150,10 +150,10 @@ EOF
   ) 2>&1 | tee "$OUT/claude-live.jsonl"
   assert_file_beta_changed "$CLAUDE_WS/sample.txt"
   grep -q 'return 2' "$CLAUDE_WS/code.js"
-  grep -q '"name":"mcp__dirac-edit-core__file_skeleton"' "$OUT/claude-live.jsonl"
-  grep -q '"name":"mcp__dirac-edit-core__symbol_replace"' "$OUT/claude-live.jsonl"
-  grep -q '"name":"mcp__dirac-edit-core__anchored_search"' "$OUT/claude-live.jsonl"
-  grep -q '"name":"mcp__dirac-edit-core__anchored_edit"' "$OUT/claude-live.jsonl"
+  grep -q '"name":"mcp__toolsmith__file_skeleton"' "$OUT/claude-live.jsonl"
+  grep -q '"name":"mcp__toolsmith__symbol_replace"' "$OUT/claude-live.jsonl"
+  grep -q '"name":"mcp__toolsmith__anchored_search"' "$OUT/claude-live.jsonl"
+  grep -q '"name":"mcp__toolsmith__anchored_edit"' "$OUT/claude-live.jsonl"
 fi
 
 log_step "done"

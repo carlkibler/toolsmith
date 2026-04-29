@@ -12,7 +12,7 @@ import { WorkspaceTools } from "../src/fs-tools.js"
 const execFileAsync = promisify(execFile)
 
 async function tempWorkspace() {
-  return fs.mkdtemp(path.join(os.tmpdir(), "dirac-edit-core-"))
+  return fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-"))
 }
 
 test("WorkspaceTools reads and writes files inside cwd", async () => {
@@ -42,7 +42,7 @@ test("CLI read emits anchored content", async () => {
   const cwd = await tempWorkspace()
   await fs.writeFile(path.join(cwd, "demo.txt"), "alpha\nbeta", "utf8")
 
-  const { stdout } = await execFileAsync(process.execPath, [path.resolve("bin/dirac-edit-core.mjs"), "read", "demo.txt"], { cwd })
+  const { stdout } = await execFileAsync(process.execPath, [path.resolve("bin/toolsmith.mjs"), "read", "demo.txt"], { cwd })
   assert.match(stdout, /\[File Hash: [a-f0-9]{8}\]/)
   assert.match(stdout, /§alpha/)
 })
@@ -51,10 +51,10 @@ test("MCP server lists and calls anchored tools", async () => {
   const cwd = await tempWorkspace()
   await fs.writeFile(path.join(cwd, "demo.txt"), "red\ngreen\nblue", "utf8")
 
-  const client = new Client({ name: "dirac-edit-core-test", version: "0.1.0" })
+  const client = new Client({ name: "toolsmith-test", version: "0.1.0" })
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [path.resolve("bin/dirac-edit-core-mcp.mjs")],
+    args: [path.resolve("bin/toolsmith-mcp.mjs")],
     cwd,
     stderr: "pipe",
   })
@@ -151,10 +151,10 @@ test("MCP anchored_edit_many applies cross-file batch", async () => {
   await fs.writeFile(path.join(cwd, "one.txt"), "a\nb", "utf8")
   await fs.writeFile(path.join(cwd, "two.txt"), "c\nd", "utf8")
 
-  const client = new Client({ name: "dirac-edit-core-test", version: "0.1.0" })
+  const client = new Client({ name: "toolsmith-test", version: "0.1.0" })
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [path.resolve("bin/dirac-edit-core-mcp.mjs")],
+    args: [path.resolve("bin/toolsmith-mcp.mjs")],
     cwd,
     stderr: "pipe",
   })

@@ -4,8 +4,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod"
 import { WorkspaceTools } from "../src/fs-tools.js"
 
-const workspace = new WorkspaceTools({ cwd: process.env.DIRAC_EDIT_CORE_CWD || process.cwd() })
-const server = new McpServer({ name: "dirac-edit-core", version: "0.1.0" })
+const workspace = new WorkspaceTools({ cwd: process.env.TOOLSMITH_CWD || process.cwd() })
+const server = new McpServer({ name: "toolsmith", version: "0.1.0" })
 
 const editSchema = z.object({
   type: z.enum(["replace", "insert_after", "insert_before"]).optional(),
@@ -195,7 +195,7 @@ server.registerTool(
     annotations: { readOnlyHint: true },
   },
   async () => ({
-    content: [{ type: "text", text: `dirac-edit-core MCP ready in ${workspace.cwd}` }],
+    content: [{ type: "text", text: `toolsmith MCP ready in ${workspace.cwd}` }],
     structuredContent: { cwd: workspace.cwd, version: "0.1.0" },
   }),
 )

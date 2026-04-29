@@ -1,4 +1,4 @@
-# Dirac Edit Core Agent Guide
+# Toolsmith Agent Guide
 
 Portable core for hash-anchored, batched, low-token file edits across agent harnesses.
 

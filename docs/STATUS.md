@@ -4,7 +4,7 @@ Updated: 2026-04-29
 
 ## What exists now
 
-`dirac-edit-core` is a small Node package for portable, hash-anchored edit primitives inspired by Dirac's low-token editing flow.
+`toolsmith` is a small Node package for portable, hash-anchored edit primitives inspired by Dirac's low-token editing flow.
 
 Implemented pieces:
 
@@ -20,11 +20,11 @@ Implemented pieces:
   - atomic single-file batched edits
   - atomic multi-file edit orchestration in filesystem wrapper
   - unchanged-line anchor preservation across nearby edits
-- CLI in `bin/dirac-edit-core.mjs`
+- CLI in `bin/toolsmith.mjs`
   - `read`
   - `edit`
   - `mcp`
-- MCP server in `bin/dirac-edit-core-mcp.mjs`
+- MCP server in `bin/toolsmith-mcp.mjs`
   - `anchored_read`
   - `anchored_search`
   - `file_skeleton`
@@ -33,7 +33,7 @@ Implemented pieces:
   - `anchored_edit`
   - `anchored_edit_many`
   - `anchored_edit_status`
-- Pi.dev adapter in `extensions/pi-dirac-edit-core.js`
+- Pi.dev adapter in `extensions/pi-toolsmith.js`
   - `pi_anchored_read`
   - `pi_anchored_search`
   - `pi_file_skeleton`
@@ -69,13 +69,13 @@ Integration coverage in tests:
 
 Live harness checks performed:
 
-- Codex MCP config installed and verified as `dirac-edit-core`
-- Claude MCP config installed and verified as `dirac-edit-core`
+- Codex MCP config installed and verified as `toolsmith`
+- Claude MCP config installed and verified as `toolsmith`
 - Codex live check successfully used `anchored_search` + `anchored_edit` in a disposable workspace to change `beta` to `BETA`
-- Claude live check successfully used `mcp__dirac-edit-core__anchored_search` + `mcp__dirac-edit-core__anchored_edit` in a disposable workspace to change `beta` to `BETA`
+- Claude live check successfully used `mcp__toolsmith__anchored_search` + `mcp__toolsmith__anchored_edit` in a disposable workspace to change `beta` to `BETA`
 - The live harness now also requires `file_skeleton` + `symbol_replace` before editing a small JavaScript function
 
-Artifact logs from the latest validation runs live under `~/dev/agent-notes/dirac-edit-core/harness-*`.
+Artifact logs from the latest validation runs live under `~/dev/agent-notes/toolsmith/harness-*`.
 
 ## Known behavior / caveats
 
@@ -85,13 +85,14 @@ Artifact logs from the latest validation runs live under `~/dev/agent-notes/dira
 
 ## Current commits
 
-- `e975fc0` Initial dirac edit core scaffold
+- `e975fc0` Initial toolsmith scaffold
 - `2ffab45` Add MCP CLI and Pi adapters
 - `e6fc3d6` Add multi-file anchored edit validation
 - `2dcd129` Add reusable harness validation scripts
 - `af3096c` Add project status notes
 - `0c47cd3` Add anchored search and clearer edit guidance
 - `c66dc00` Add structural read tools
+- `9b31fdd` Add token savings telemetry
 - `071ee5e` Add symbol-scoped replace tool
 
 ## Next good steps

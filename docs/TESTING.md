@@ -10,7 +10,7 @@ Reusable checks live in `scripts/` so agent-harness behavior can be re-run after
 npm run install:harnesses
 ```
 
-This registers the local MCP server path with Codex and Claude as `dirac-edit-core`.
+This registers the local MCP server path with Codex and Claude as `toolsmith`.
 
 ## Cheap default checks
 
@@ -24,14 +24,14 @@ Default checks do not call models. They run:
 
 - `npm run check`
 - `npm pack --dry-run`
-- `codex mcp get dirac-edit-core`
-- `claude mcp get dirac-edit-core`
+- `codex mcp get toolsmith`
+- `claude mcp get toolsmith`
 
-Artifacts are written under `~/dev/agent-notes/dirac-edit-core/harness-<timestamp>/` unless `DIRAC_EDIT_CORE_ARTIFACT_DIR` is set.
+Artifacts are written under `~/dev/agent-notes/toolsmith/harness-<timestamp>/` unless `TOOLSMITH_ARTIFACT_DIR` is set. The old `DIRAC_EDIT_CORE_ARTIFACT_DIR` alias is still accepted during the rename transition.
 
 ## Live agent checks
 
-Live checks create disposable temp workspaces inside the artifact directory, ask the agent to use the `dirac-edit-core` MCP tools, then validate both the final file content and the tool-call trace.
+Live checks create disposable temp workspaces inside the artifact directory, ask the agent to use the `toolsmith` MCP tools, then validate both the final file content and the tool-call trace.
 
 ```bash
 ./scripts/test-harnesses.sh --skip-local --live-codex

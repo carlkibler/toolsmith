@@ -18,7 +18,7 @@ const editSchema = Type.Object({
   text: Type.String({ description: "Replacement or inserted text. Anchors are stripped if included." }),
 })
 
-export default function diracEditCorePiExtension(pi) {
+export default function toolsmithPiExtension(pi) {
   pi.registerTool({
     name: "pi_anchored_read",
     label: "anchored read",
@@ -203,12 +203,12 @@ export default function diracEditCorePiExtension(pi) {
   pi.registerTool({
     name: "pi_anchored_status",
     label: "anchored status",
-    description: "Report dirac-edit-core Pi extension status.",
+    description: "Report toolsmith Pi extension status.",
     executionMode: "parallel",
     parameters: Type.Object({}),
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
       return {
-        content: [{ type: "text", text: `dirac-edit-core Pi extension ready in ${ctx.cwd}` }],
+        content: [{ type: "text", text: `toolsmith Pi extension ready in ${ctx.cwd}` }],
         details: { cwd: ctx.cwd, version: "0.1.0" },
       }
     },

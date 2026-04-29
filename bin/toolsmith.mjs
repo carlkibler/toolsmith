@@ -8,14 +8,14 @@ const tools = new WorkspaceTools({ cwd: process.cwd() })
 
 function usage() {
   console.error(`Usage:
-  dirac-edit-core read <path> [--start N] [--end N] [--session ID]
-  dirac-edit-core search <path> <query> [--regex] [--case-sensitive] [--context N] [--max N] [--session ID]
-  dirac-edit-core skeleton <path> [--max N] [--session ID]
-  dirac-edit-core get-function <path> <name> [--context N] [--max N] [--session ID]
-  dirac-edit-core symbol-replace <path> <name> --search TEXT --replacement TEXT [--regex] [--all] [--ignore-case] [--dry-run] [--session ID]
-  dirac-edit-core edit <path> --edits edits.json [--dry-run] [--session ID]
-  dirac-edit-core edit-many files.json [--dry-run] [--session ID]
-  dirac-edit-core mcp
+  toolsmith read <path> [--start N] [--end N] [--session ID]
+  toolsmith search <path> <query> [--regex] [--case-sensitive] [--context N] [--max N] [--session ID]
+  toolsmith skeleton <path> [--max N] [--session ID]
+  toolsmith get-function <path> <name> [--context N] [--max N] [--session ID]
+  toolsmith symbol-replace <path> <name> --search TEXT --replacement TEXT [--regex] [--all] [--ignore-case] [--dry-run] [--session ID]
+  toolsmith edit <path> --edits edits.json [--dry-run] [--session ID]
+  toolsmith edit-many files.json [--dry-run] [--session ID]
+  toolsmith mcp
 `)
 }
 
@@ -26,7 +26,7 @@ function option(name) {
 
 try {
   if (command === "mcp") {
-    await import("./dirac-edit-core-mcp.mjs")
+    await import("./toolsmith-mcp.mjs")
   } else if (command === "read") {
     const target = args[0]
     const result = await tools.read({

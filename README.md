@@ -1,6 +1,6 @@
-# dirac-edit-core
+# toolsmith
 
-Portable hash-anchored edit primitives inspired by Dirac's low-token editing workflow.
+Portable coding-agent efficiency tools, starting with hash-anchored edit primitives inspired by Dirac's low-token editing workflow.
 
 The first goal is a small, dependency-light core that other harnesses can wrap:
 
@@ -15,7 +15,7 @@ Future wrappers can expose this through Pi.dev extensions, MCP servers for Claud
 ## Example
 
 ```js
-import { AnchorStore, readAnchored, applyAnchoredEdits } from "dirac-edit-core"
+import { AnchorStore, readAnchored, applyAnchoredEdits } from "toolsmith"
 
 const store = new AnchorStore()
 const read = readAnchored({ path: "src/app.js", content, store, sessionId: "task-1" })
@@ -36,6 +36,10 @@ const result = applyAnchoredEdits({
 })
 ```
 
+## Licensing and attribution
+
+Toolsmith is MIT licensed. It is inspired by Dirac and may later incorporate compatible, attribution-preserving pieces from cozempic and tokenlean. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
 ## Design Notes
 
 See [`docs/PORTING.md`](docs/PORTING.md). Current status is in [`docs/STATUS.md`](docs/STATUS.md).
@@ -44,18 +48,18 @@ See [`docs/PORTING.md`](docs/PORTING.md). Current status is in [`docs/STATUS.md`
 
 ```bash
 # Read with anchors
-npx dirac-edit-core read src/app.js
+npx toolsmith read src/app.js
 
 # Search with compact anchored snippets
-npx dirac-edit-core search src/app.js oldName --context 2
+npx toolsmith search src/app.js oldName --context 2
 
 # Read structure without full file content
-npx dirac-edit-core skeleton src/app.js
-npx dirac-edit-core get-function src/app.js oldName --context 2
-npx dirac-edit-core symbol-replace src/app.js oldName --search old --replacement new
+npx toolsmith skeleton src/app.js
+npx toolsmith get-function src/app.js oldName --context 2
+npx toolsmith symbol-replace src/app.js oldName --search old --replacement new
 
 # Apply edits from JSON
-npx dirac-edit-core edit src/app.js --edits edits.json --dry-run
+npx toolsmith edit src/app.js --edits edits.json --dry-run
 ```
 
 ## MCP
@@ -63,9 +67,9 @@ npx dirac-edit-core edit src/app.js --edits edits.json --dry-run
 Run the stdio MCP server from a workspace root:
 
 ```bash
-npx dirac-edit-core-mcp
+npx toolsmith-mcp
 # or
-npx dirac-edit-core mcp
+npx toolsmith mcp
 ```
 
 Tools:
@@ -79,16 +83,16 @@ Tools:
 - `anchored_edit_many` — validates and applies exact edits across multiple files.
 - `anchored_edit_status` — smoke-test/status tool.
 
-For Codex/Claude-style MCP config, point the command at `bin/dirac-edit-core-mcp.mjs` or an installed `dirac-edit-core-mcp` binary and set the working directory to the target repo.
+For Codex/Claude-style MCP config, point the command at `bin/toolsmith-mcp.mjs` or an installed `toolsmith-mcp` binary and set the working directory to the target repo.
 
 ## Pi.dev Extension
 
-This package also includes a Pi extension at `extensions/pi-dirac-edit-core.js` and declares it in the `pi` package manifest.
+This package also includes a Pi extension at `extensions/pi-toolsmith.js` and declares it in the `pi` package manifest.
 
 Quick local test in Pi:
 
 ```bash
-pi --offline --no-builtin-tools -e ./extensions/pi-dirac-edit-core.js --tools pi_anchored_read,pi_anchored_edit
+pi --offline --no-builtin-tools -e ./extensions/pi-toolsmith.js --tools pi_anchored_read,pi_anchored_edit
 ```
 
 Registered tools:

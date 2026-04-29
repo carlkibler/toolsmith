@@ -1,5 +1,5 @@
 {
-  "name": "dirac-edit-core",
+  "name": "toolsmith",
   "version": "0.1.0",
   "description": "Portable hash-anchored edit primitives for agent harnesses.",
   "type": "module",
@@ -23,8 +23,8 @@
     "typebox": "^1.1.34"
   },
   "bin": {
-    "dirac-edit-core": "./bin/dirac-edit-core.mjs",
-    "dirac-edit-core-mcp": "./bin/dirac-edit-core-mcp.mjs"
+    "toolsmith": "./bin/toolsmith.mjs",
+    "toolsmith-mcp": "./bin/toolsmith-mcp.mjs"
   },
   "pi": {
     "extensions": [

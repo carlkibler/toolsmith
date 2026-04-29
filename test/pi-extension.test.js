@@ -3,10 +3,10 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
-import extension from "../extensions/pi-dirac-edit-core.js"
+import extension from "../extensions/pi-toolsmith.js"
 
 async function tempWorkspace() {
-  return fs.mkdtemp(path.join(os.tmpdir(), "dirac-edit-core-pi-"))
+  return fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-pi-"))
 }
 
 test("Pi extension registers anchored tools and executes them", async () => {

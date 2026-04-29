@@ -11,7 +11,7 @@ Build and test harness-independent primitives:
 
 ## Phase 2: MCP Adapter
 
-Implemented as `bin/dirac-edit-core-mcp.mjs`. Expose tools that Claude Code and Codex CLI can add as an MCP server:
+Implemented as `bin/toolsmith-mcp.mjs`. Expose tools that Claude Code and Codex CLI can add as an MCP server:
 
 - `anchored_read`
 - `anchored_edit`
@@ -22,7 +22,7 @@ Implemented as `bin/dirac-edit-core-mcp.mjs`. Expose tools that Claude Code and 
 
 ## Phase 3: Pi.dev Adapter
 
-Implemented initially as `extensions/pi-dirac-edit-core.js`. A Pi package can feel more native than MCP:
+Implemented initially as `extensions/pi-toolsmith.js`. A Pi package can feel more native than MCP:
 
 - override/add read and edit tools
 - route multi-file edit batches through this core

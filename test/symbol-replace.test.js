@@ -42,7 +42,7 @@ test("symbolReplace fails without writing content when search missing", () => {
 
 
 test("WorkspaceTools symbolReplace includes telemetry", async () => {
-  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "dirac-edit-core-telemetry-"))
+  const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-telemetry-"))
   await fs.writeFile(path.join(cwd, "demo.js"), content, "utf8")
   const tools = new WorkspaceTools({ cwd })
 
