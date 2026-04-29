@@ -48,6 +48,10 @@ npx dirac-edit-core read src/app.js
 # Search with compact anchored snippets
 npx dirac-edit-core search src/app.js oldName --context 2
 
+# Read structure without full file content
+npx dirac-edit-core skeleton src/app.js
+npx dirac-edit-core get-function src/app.js oldName --context 2
+
 # Apply edits from JSON
 npx dirac-edit-core edit src/app.js --edits edits.json --dry-run
 ```
@@ -66,6 +70,8 @@ Tools:
 
 - `anchored_read` — returns `[File Hash: ...]` and `Anchor§line` content.
 - `anchored_search` — returns compact matching snippets with `Anchor§line` references.
+- `file_skeleton` — returns compact anchored declaration outlines.
+- `get_function` — returns one named symbol range with anchors.
 - `anchored_edit` — applies exact batched edits; stale or inexact anchors fail before writing.
 - `anchored_edit_many` — validates and applies exact edits across multiple files.
 - `anchored_edit_status` — smoke-test/status tool.
@@ -86,6 +92,8 @@ Registered tools:
 
 - `pi_anchored_read`
 - `pi_anchored_search`
+- `pi_file_skeleton`
+- `pi_get_function`
 - `pi_anchored_edit`
 - `pi_anchored_edit_many`
 - `pi_anchored_status`

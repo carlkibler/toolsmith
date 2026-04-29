@@ -10,6 +10,8 @@ function usage() {
   console.error(`Usage:
   dirac-edit-core read <path> [--start N] [--end N] [--session ID]
   dirac-edit-core search <path> <query> [--regex] [--case-sensitive] [--context N] [--max N] [--session ID]
+  dirac-edit-core skeleton <path> [--max N] [--session ID]
+  dirac-edit-core get-function <path> <name> [--context N] [--max N] [--session ID]
   dirac-edit-core edit <path> --edits edits.json [--dry-run] [--session ID]
   dirac-edit-core edit-many files.json [--dry-run] [--session ID]
   dirac-edit-core mcp
@@ -46,6 +48,26 @@ try {
       maxMatches: option("--max") ? Number(option("--max")) : undefined,
     })
     console.log(result.text)
+  } else if (command === "skeleton") {
+    const target = args[0]
+    const result = await tools.skeleton({
+      path: target,
+      sessionId: option("--session") || "cli",
+      maxLines: option("--max") ? Number(option("--max")) : undefined,
+    })
+    console.log(result.text)
+  } else if (command === "get-function") {
+    const target = args[0]
+    const name = args[1]
+    const result = await tools.getFunction({
+      path: target,
+      name,
+      sessionId: option("--session") || "cli",
+      contextLines: option("--context") ? Number(option("--context")) : undefined,
+      maxLines: option("--max") ? Number(option("--max")) : undefined,
+    })
+    console.log(result.text)
+    process.exitCode = result.found === false ? 2 : 0
   } else if (command === "edit") {
     const target = args[0]
     const editsPath = option("--edits")

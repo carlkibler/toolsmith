@@ -5,6 +5,7 @@ import { contentHash } from "./hash.js"
 import { readAnchored } from "./read.js"
 import { applyAnchoredEdits } from "./edit.js"
 import { searchAnchored } from "./search.js"
+import { fileSkeleton, getFunction } from "./structure.js"
 
 const DEFAULT_MAX_BYTES = 512 * 1024
 
@@ -38,6 +39,20 @@ export class WorkspaceTools {
     await this.#assertReadableSize(absolute)
     const content = await fs.readFile(absolute, "utf8")
     return searchAnchored({ path: relative, content, store: this.store, sessionId, query, regex, caseSensitive, contextLines, maxMatches })
+  }
+
+  async skeleton({ path: inputPath, sessionId = "default", maxLines = 200 }) {
+    const { absolute, relative } = this.resolvePath(inputPath)
+    await this.#assertReadableSize(absolute)
+    const content = await fs.readFile(absolute, "utf8")
+    return fileSkeleton({ path: relative, content, store: this.store, sessionId, maxLines })
+  }
+
+  async getFunction({ path: inputPath, sessionId = "default", name, contextLines = 0, maxLines = 400 }) {
+    const { absolute, relative } = this.resolvePath(inputPath)
+    await this.#assertReadableSize(absolute)
+    const content = await fs.readFile(absolute, "utf8")
+    return getFunction({ path: relative, content, store: this.store, sessionId, name, contextLines, maxLines })
   }
 
   async edit({ path: inputPath, sessionId = "default", edits, atomic = true, dryRun = false }) {

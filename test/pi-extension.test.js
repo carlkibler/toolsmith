@@ -15,13 +15,22 @@ test("Pi extension registers anchored tools and executes them", async () => {
 
   assert(registered.has("pi_anchored_read"))
   assert(registered.has("pi_anchored_search"))
+  assert(registered.has("pi_file_skeleton"))
+  assert(registered.has("pi_get_function"))
   assert(registered.has("pi_anchored_edit"))
   assert(registered.has("pi_anchored_edit_many"))
   assert(registered.has("pi_anchored_status"))
 
   const cwd = await tempWorkspace()
   await fs.writeFile(path.join(cwd, "demo.txt"), "cat\ndog\neel", "utf8")
+  await fs.writeFile(path.join(cwd, "code.js"), "function demo() {\n  return 1\n}\n", "utf8")
   const ctx = { cwd }
+
+  const skeleton = await registered.get("pi_file_skeleton").execute("call-skeleton", { path: "code.js", sessionId: "pi" }, undefined, undefined, ctx)
+  assert.match(skeleton.content[0].text, /§function demo/)
+  const fn = await registered.get("pi_get_function").execute("call-function", { path: "code.js", name: "demo", sessionId: "pi" }, undefined, undefined, ctx)
+  assert.equal(fn.isError, false)
+  assert.match(fn.content[0].text, /§  return 1/)
 
   const search = await registered.get("pi_anchored_search").execute("call-1", { path: "demo.txt", query: "dog", sessionId: "pi", contextLines: 0 }, undefined, undefined, ctx)
   const dogLine = search.content[0].text.split("\n").find((line) => line.endsWith("§dog"))

@@ -16,7 +16,9 @@ Implemented as `bin/dirac-edit-core-mcp.mjs`. Expose tools that Claude Code and 
 - `anchored_read`
 - `anchored_edit`
 - `anchored_search` - implemented for single-file compact anchored snippets
-- later: `symbol_replace`, `file_skeleton`, `get_function`
+- `file_skeleton` - implemented with lightweight declaration heuristics
+- `get_function` - implemented with lightweight name/range heuristics
+- later: `symbol_replace`
 
 ## Phase 3: Pi.dev Adapter
 

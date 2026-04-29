@@ -72,6 +72,11 @@ one
 two
 three
 EOF
+  cat > "$dir/code.js" <<'EOF'
+function demo() {
+  return 1
+}
+EOF
   printf '%s\n' "$dir"
 }
 
@@ -114,10 +119,16 @@ if [[ "$RUN_LIVE_CODEX" -eq 1 ]]; then
   fi
   log_step "codex live MCP edit"
   CODEX_WS="$(seed_workspace codex)"
-  CODEX_PROMPT='Use the dirac-edit-core MCP server, specifically anchored_search and anchored_edit, to change sample.txt line beta to BETA. Search sample.txt for beta with contextLines 0. For anchored_edit, include the full anchor reference with the § delimiter and line content exactly as returned by anchored_search, and include endAnchor for replace. Do not use shell commands, anchored_read, or built-in file editing tools for mutation. Report final content.'
+  CODEX_PROMPT=$(cat <<'EOF'
+Use the dirac-edit-core MCP server. First use file_skeleton and get_function on code.js for demo, then use anchored_edit to change the line '  return 1' to '  return 2' using the full Anchor§line reference from get_function with endAnchor. Then use anchored_search and anchored_edit to change sample.txt line beta to BETA. Do not use shell commands, anchored_read, or built-in file editing tools for mutation. Report final contents.
+EOF
+)
   codex exec --json --dangerously-bypass-approvals-and-sandbox -C "$CODEX_WS" --skip-git-repo-check "$CODEX_PROMPT" \
     2>&1 | tee "$OUT/codex-live.jsonl"
   assert_file_beta_changed "$CODEX_WS/sample.txt"
+  grep -q 'return 2' "$CODEX_WS/code.js"
+  grep -q '"server":"dirac-edit-core","tool":"file_skeleton"' "$OUT/codex-live.jsonl"
+  grep -q '"server":"dirac-edit-core","tool":"get_function"' "$OUT/codex-live.jsonl"
   grep -q '"server":"dirac-edit-core","tool":"anchored_search"' "$OUT/codex-live.jsonl"
   grep -q '"server":"dirac-edit-core","tool":"anchored_edit"' "$OUT/codex-live.jsonl"
 fi
@@ -129,12 +140,18 @@ if [[ "$RUN_LIVE_CLAUDE" -eq 1 ]]; then
   fi
   log_step "claude live MCP edit"
   CLAUDE_WS="$(seed_workspace claude)"
-  CLAUDE_PROMPT='Use the dirac-edit-core MCP server tools anchored_search and anchored_edit to change sample.txt line beta to BETA. Search sample.txt for beta with contextLines 0. For anchored_edit include the full Anchor§line reference from anchored_search and endAnchor. Do not use Bash, anchored_read, or built-in Edit/Write for mutation. Report final content.'
+  CLAUDE_PROMPT=$(cat <<'EOF'
+Use the dirac-edit-core MCP server. First use file_skeleton and get_function on code.js for demo, then use anchored_edit to change the line '  return 1' to '  return 2' using the full Anchor§line reference from get_function with endAnchor. Then use anchored_search and anchored_edit to change sample.txt line beta to BETA. Do not use Bash, anchored_read, or built-in Edit/Write for mutation. Report final contents.
+EOF
+)
   (
     cd "$CLAUDE_WS"
     printf '%s' "$CLAUDE_PROMPT" | claude -p --dangerously-skip-permissions --verbose --output-format stream-json --debug-file "$OUT/claude-debug.log"
   ) 2>&1 | tee "$OUT/claude-live.jsonl"
   assert_file_beta_changed "$CLAUDE_WS/sample.txt"
+  grep -q 'return 2' "$CLAUDE_WS/code.js"
+  grep -q '"name":"mcp__dirac-edit-core__file_skeleton"' "$OUT/claude-live.jsonl"
+  grep -q '"name":"mcp__dirac-edit-core__get_function"' "$OUT/claude-live.jsonl"
   grep -q '"name":"mcp__dirac-edit-core__anchored_search"' "$OUT/claude-live.jsonl"
   grep -q '"name":"mcp__dirac-edit-core__anchored_edit"' "$OUT/claude-live.jsonl"
 fi

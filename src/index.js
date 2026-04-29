@@ -10,3 +10,4 @@ export {
 export { readAnchored } from "./read.js"
 export { applyAnchoredEdits } from "./edit.js"
 export { searchAnchored } from "./search.js"
+export { fileSkeleton, getFunction } from "./structure.js"

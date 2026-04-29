@@ -68,6 +68,51 @@ export default function diracEditCorePiExtension(pi) {
 
 
   pi.registerTool({
+    name: "pi_file_skeleton",
+    label: "file skeleton",
+    description: "Return a compact anchored outline of imports, classes, functions, and top-level declarations.",
+    promptSnippet: "Inspect file structure with anchored declaration lines",
+    promptGuidelines: [
+      "Use pi_file_skeleton before full reads when you only need file structure.",
+      "Use pi_get_function after finding the symbol you need to inspect or edit.",
+    ],
+    executionMode: "parallel",
+    parameters: Type.Object({
+      path: Type.String({ description: "Workspace-relative file path." }),
+      sessionId: Type.Optional(Type.String({ description: "Anchor session id. Use same value for follow-up tools." })),
+      maxLines: Type.Optional(Type.Number({ minimum: 1, maximum: 1000 })),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const result = await toolsFor(ctx.cwd).skeleton(params)
+      return { content: [{ type: "text", text: result.text }], details: result }
+    },
+  })
+
+  pi.registerTool({
+    name: "pi_get_function",
+    label: "get function",
+    description: "Return the anchored source range for a named function, class, type, or top-level declaration.",
+    promptSnippet: "Read one named symbol with stable edit anchors",
+    promptGuidelines: [
+      "Prefer pi_get_function over full pi_anchored_read when changing one symbol.",
+      "Copy complete Anchor§line references from the returned range into pi_anchored_edit.",
+    ],
+    executionMode: "parallel",
+    parameters: Type.Object({
+      path: Type.String({ description: "Workspace-relative file path." }),
+      name: Type.String({ description: "Symbol name to extract." }),
+      sessionId: Type.Optional(Type.String({ description: "Anchor session id. Use same value for edits." })),
+      contextLines: Type.Optional(Type.Number({ minimum: 0, maximum: 50 })),
+      maxLines: Type.Optional(Type.Number({ minimum: 1, maximum: 2000 })),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const result = await toolsFor(ctx.cwd).getFunction(params)
+      return { content: [{ type: "text", text: result.text }], details: result, isError: result.found === false }
+    },
+  })
+
+
+  pi.registerTool({
     name: "pi_anchored_edit",
     label: "anchored edit",
     description: "Apply exact anchor-targeted edits atomically. Use full Anchor§line references from pi_anchored_read or pi_anchored_search. For replace, endAnchor is required; repeat anchor for one-line replace.",

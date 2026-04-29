@@ -63,6 +63,45 @@ server.registerTool(
   },
 )
 
+
+server.registerTool(
+  "file_skeleton",
+  {
+    title: "File Skeleton",
+    description: "Return a compact anchored outline of imports, classes, functions, and top-level declarations. Use before anchored_read when you need file structure without full file content.",
+    inputSchema: {
+      path: z.string().describe("Workspace-relative file path."),
+      sessionId: z.string().optional().describe("Optional anchor session id; use the same id for subsequent get_function or edits."),
+      maxLines: z.number().int().positive().max(1000).optional().describe("Maximum skeleton entries to return. Default 200."),
+    },
+    annotations: { readOnlyHint: true },
+  },
+  async (args) => {
+    const result = await workspace.skeleton(args)
+    return { content: [{ type: "text", text: result.text }], structuredContent: result }
+  },
+)
+
+server.registerTool(
+  "get_function",
+  {
+    title: "Get Function",
+    description: "Return the anchored source range for a named function, class, type, or top-level declaration. Use this before anchored_edit when changing one symbol.",
+    inputSchema: {
+      path: z.string().describe("Workspace-relative file path."),
+      name: z.string().describe("Symbol name to extract."),
+      sessionId: z.string().optional().describe("Optional anchor session id; use the same id for subsequent edits."),
+      contextLines: z.number().int().min(0).max(50).optional().describe("Context lines before and after the symbol. Default 0."),
+      maxLines: z.number().int().positive().max(2000).optional().describe("Maximum anchored lines to return. Default 400."),
+    },
+    annotations: { readOnlyHint: true },
+  },
+  async (args) => {
+    const result = await workspace.getFunction(args)
+    return { content: [{ type: "text", text: result.text }], structuredContent: result, isError: result.found === false }
+  },
+)
+
 server.registerTool(
   "anchored_edit",
   {
