@@ -11,7 +11,7 @@ Build and test harness-independent primitives:
 
 ## Phase 2: MCP Adapter
 
-Expose tools that Claude Code and Codex CLI can add as an MCP server:
+Implemented as `bin/dirac-edit-core-mcp.mjs`. Expose tools that Claude Code and Codex CLI can add as an MCP server:
 
 - `anchored_read`
 - `anchored_edit`
@@ -20,7 +20,7 @@ Expose tools that Claude Code and Codex CLI can add as an MCP server:
 
 ## Phase 3: Pi.dev Adapter
 
-A Pi package can feel more native than MCP:
+Implemented initially as `extensions/pi-dirac-edit-core.js`. A Pi package can feel more native than MCP:
 
 - override/add read and edit tools
 - route multi-file edit batches through this core
@@ -30,3 +30,14 @@ A Pi package can feel more native than MCP:
 
 - tokenlean: token accounting, compact command/search outputs, capture/savings reporting.
 - cozempic: only if it has generally useful Codex/harness compatibility pieces; avoid dragging product-specific code into the core.
+
+
+## Test Coverage Now
+
+- Core anchor/read/edit unit tests.
+- Filesystem wrapper tests with temp workspaces.
+- CLI smoke test.
+- MCP stdio integration test using the official MCP SDK client transport.
+- Pi extension registration/execution test with a fake ExtensionAPI and temp workspace.
+
+Remaining manual-ish validation later: install the package into real Pi/Codex/Claude configs and watch a model choose the tools naturally. That requires either user-visible config changes or live model calls, so it is intentionally not part of the default automated suite yet.
