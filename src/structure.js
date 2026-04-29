@@ -1,8 +1,6 @@
 import { contentHash } from "./hash.js"
 import { formatAnchoredLine, splitLines } from "./anchors.js"
 
-const DEFAULT_SYMBOL_PATTERN = /\b(function|class|def|struct|enum|protocol|interface|type|const|let|var)\s+([A-Za-z_$][\w$]*)|\b([A-Za-z_$][\w$]*)\s*[:=]\s*(?:async\s*)?(?:function\b|\([^)]*\)\s*=>)|\b(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/u
-
 export function fileSkeleton({ path, content, store, sessionId, maxLines = 200 }) {
   if (!store) throw new Error("fileSkeleton requires an AnchorStore")
   const lines = splitLines(content)
@@ -25,12 +23,12 @@ export function getFunction({ path, content, store, sessionId, name, contextLine
   if (!name || typeof name !== "string") throw new Error("name is required")
   const lines = splitLines(content)
   const anchors = store.reconcile(path, content, { sessionId })
-  const startIndex = findSymbolStart(lines, name)
-  if (startIndex === -1) {
+  const range = findSymbolRange(lines, name)
+  if (!range) {
     return { path, fileHash: contentHash(content), name, found: false, text: `[File: ${path}] [File Hash: ${contentHash(content)}]\n(symbol not found: ${name})` }
   }
 
-  const endIndex = findSymbolEnd(lines, startIndex)
+  const { startIndex, endIndex } = range
   const start = Math.max(0, startIndex - contextLines)
   const end = Math.min(lines.length, Math.min(endIndex + 1 + contextLines, start + maxLines))
   const body = lines.slice(start, end).map((line, offset) => formatAnchoredLine(anchors[start + offset], line)).join("\n")
@@ -67,6 +65,12 @@ function formatSkeletonText({ path, content, entries, truncated }) {
   const header = `[File: ${path}] [File Hash: ${contentHash(content)}] [Skeleton Lines: ${entries.length}${truncated ? "+" : ""}]`
   if (entries.length === 0) return `${header}\n(no skeleton entries)`
   return `${header}\n${entries.map((entry) => `${entry.line}: ${formatAnchoredLine(entry.anchor, entry.text)}`).join("\n")}`
+}
+
+export function findSymbolRange(lines, name) {
+  const startIndex = findSymbolStart(lines, name)
+  if (startIndex === -1) return null
+  return { startIndex, endIndex: findSymbolEnd(lines, startIndex) }
 }
 
 function findSymbolStart(lines, name) {

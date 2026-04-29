@@ -67,6 +67,7 @@ test("MCP server lists and calls anchored tools", async () => {
     assert(tools.tools.some((tool) => tool.name === "anchored_search"))
     assert(tools.tools.some((tool) => tool.name === "file_skeleton"))
     assert(tools.tools.some((tool) => tool.name === "get_function"))
+    assert(tools.tools.some((tool) => tool.name === "symbol_replace"))
 
     await fs.writeFile(path.join(cwd, "code.js"), "function demo() {\n  return 1\n}\n", "utf8")
     const skeletonResult = await client.callTool({ name: "file_skeleton", arguments: { path: "code.js", sessionId: "mcp" } })
@@ -74,6 +75,9 @@ test("MCP server lists and calls anchored tools", async () => {
     const functionResult = await client.callTool({ name: "get_function", arguments: { path: "code.js", name: "demo", sessionId: "mcp" } })
     assert.equal(functionResult.isError, false)
     assert.match(functionResult.content[0].text, /§  return 1/)
+    const symbolReplaceResult = await client.callTool({ name: "symbol_replace", arguments: { path: "code.js", name: "demo", search: "return 1", replacement: "return 2", sessionId: "mcp" } })
+    assert.equal(symbolReplaceResult.isError, false)
+    assert.match(await fs.readFile(path.join(cwd, "code.js"), "utf8"), /return 2/)
 
     const searchResult = await client.callTool({ name: "anchored_search", arguments: { path: "demo.txt", query: "green", sessionId: "mcp", contextLines: 0 } })
     assert.match(searchResult.content[0].text, /§green/)

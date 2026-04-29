@@ -6,6 +6,7 @@ import { readAnchored } from "./read.js"
 import { applyAnchoredEdits } from "./edit.js"
 import { searchAnchored } from "./search.js"
 import { fileSkeleton, getFunction } from "./structure.js"
+import { symbolReplace } from "./symbol-replace.js"
 
 const DEFAULT_MAX_BYTES = 512 * 1024
 
@@ -53,6 +54,19 @@ export class WorkspaceTools {
     await this.#assertReadableSize(absolute)
     const content = await fs.readFile(absolute, "utf8")
     return getFunction({ path: relative, content, store: this.store, sessionId, name, contextLines, maxLines })
+  }
+
+  async symbolReplace({ path: inputPath, sessionId = "default", name, search, replacement = "", regex = false, replaceAll = false, caseSensitive = true, dryRun = false }) {
+    const { absolute, relative } = this.resolvePath(inputPath)
+    await this.#assertReadableSize(absolute)
+    const before = await fs.readFile(absolute, "utf8")
+    const result = symbolReplace({ path: relative, content: before, store: this.store, sessionId, name, search, replacement, regex, replaceAll, caseSensitive })
+
+    if (result.ok && result.changed && !dryRun) {
+      await fs.writeFile(absolute, result.content, "utf8")
+    }
+
+    return { ...result, dryRun }
   }
 
   async edit({ path: inputPath, sessionId = "default", edits, atomic = true, dryRun = false }) {

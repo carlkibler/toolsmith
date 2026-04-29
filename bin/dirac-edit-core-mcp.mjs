@@ -102,6 +102,33 @@ server.registerTool(
   },
 )
 
+
+server.registerTool(
+  "symbol_replace",
+  {
+    title: "Symbol Replace",
+    description: "Safely replace text only inside one named function/class/type/top-level declaration. Use for small symbol-scoped changes when full anchored_edit is unnecessary.",
+    inputSchema: {
+      path: z.string().describe("Workspace-relative file path."),
+      name: z.string().describe("Symbol name whose body/range should be edited."),
+      search: z.string().describe("Literal text to replace by default, or JavaScript regex pattern when regex is true."),
+      replacement: z.string().default("").describe("Replacement text."),
+      sessionId: z.string().optional().describe("Optional anchor session id."),
+      regex: z.boolean().optional().describe("Treat search as a JavaScript regex. Default false."),
+      replaceAll: z.boolean().optional().describe("Replace every match inside the symbol. Default false."),
+      caseSensitive: z.boolean().optional().describe("Case-sensitive matching. Default true."),
+      dryRun: z.boolean().optional().describe("Validate and preview without writing. Default false."),
+    },
+  },
+  async (args) => {
+    const result = await workspace.symbolReplace(args)
+    const summary = result.ok
+      ? `${result.dryRun ? "Would replace" : "Replaced"} ${result.matches} match(es) in ${result.name} (${result.path}). ${result.beforeHash} -> ${result.afterHash}`
+      : `Symbol replace failed for ${args.path}:\n${result.errors.join("\n")}`
+    return { content: [{ type: "text", text: summary }], structuredContent: result, isError: !result.ok }
+  },
+)
+
 server.registerTool(
   "anchored_edit",
   {

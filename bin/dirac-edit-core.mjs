@@ -12,6 +12,7 @@ function usage() {
   dirac-edit-core search <path> <query> [--regex] [--case-sensitive] [--context N] [--max N] [--session ID]
   dirac-edit-core skeleton <path> [--max N] [--session ID]
   dirac-edit-core get-function <path> <name> [--context N] [--max N] [--session ID]
+  dirac-edit-core symbol-replace <path> <name> --search TEXT --replacement TEXT [--regex] [--all] [--ignore-case] [--dry-run] [--session ID]
   dirac-edit-core edit <path> --edits edits.json [--dry-run] [--session ID]
   dirac-edit-core edit-many files.json [--dry-run] [--session ID]
   dirac-edit-core mcp
@@ -68,6 +69,24 @@ try {
     })
     console.log(result.text)
     process.exitCode = result.found === false ? 2 : 0
+  } else if (command === "symbol-replace") {
+    const target = args[0]
+    const name = args[1]
+    const search = option("--search")
+    if (!search) throw new Error("--search is required")
+    const result = await tools.symbolReplace({
+      path: target,
+      name,
+      search,
+      replacement: option("--replacement") || "",
+      sessionId: option("--session") || "cli",
+      regex: args.includes("--regex"),
+      replaceAll: args.includes("--all"),
+      caseSensitive: !args.includes("--ignore-case"),
+      dryRun: args.includes("--dry-run"),
+    })
+    console.log(JSON.stringify(result, null, 2))
+    process.exitCode = result.ok ? 0 : 2
   } else if (command === "edit") {
     const target = args[0]
     const editsPath = option("--edits")

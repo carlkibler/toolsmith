@@ -17,6 +17,7 @@ test("Pi extension registers anchored tools and executes them", async () => {
   assert(registered.has("pi_anchored_search"))
   assert(registered.has("pi_file_skeleton"))
   assert(registered.has("pi_get_function"))
+  assert(registered.has("pi_symbol_replace"))
   assert(registered.has("pi_anchored_edit"))
   assert(registered.has("pi_anchored_edit_many"))
   assert(registered.has("pi_anchored_status"))
@@ -31,6 +32,9 @@ test("Pi extension registers anchored tools and executes them", async () => {
   const fn = await registered.get("pi_get_function").execute("call-function", { path: "code.js", name: "demo", sessionId: "pi" }, undefined, undefined, ctx)
   assert.equal(fn.isError, false)
   assert.match(fn.content[0].text, /§  return 1/)
+  const sym = await registered.get("pi_symbol_replace").execute("call-symbol", { path: "code.js", name: "demo", search: "return 1", replacement: "return 2", sessionId: "pi" }, undefined, undefined, ctx)
+  assert.equal(sym.isError, false)
+  assert.match(await fs.readFile(path.join(cwd, "code.js"), "utf8"), /return 2/)
 
   const search = await registered.get("pi_anchored_search").execute("call-1", { path: "demo.txt", query: "dog", sessionId: "pi", contextLines: 0 }, undefined, undefined, ctx)
   const dogLine = search.content[0].text.split("\n").find((line) => line.endsWith("§dog"))

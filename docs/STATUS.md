@@ -15,6 +15,7 @@ Implemented pieces:
   - retry-friendly validation errors that show the exact full `Anchor§line` reference
   - compact anchored single-file search
   - compact structural reads with `file_skeleton` and `get_function`
+  - safe symbol-scoped replacements with `symbol_replace`
   - atomic single-file batched edits
   - atomic multi-file edit orchestration in filesystem wrapper
   - unchanged-line anchor preservation across nearby edits
@@ -27,6 +28,7 @@ Implemented pieces:
   - `anchored_search`
   - `file_skeleton`
   - `get_function`
+  - `symbol_replace`
   - `anchored_edit`
   - `anchored_edit_many`
   - `anchored_edit_status`
@@ -35,6 +37,7 @@ Implemented pieces:
   - `pi_anchored_search`
   - `pi_file_skeleton`
   - `pi_get_function`
+  - `pi_symbol_replace`
   - `pi_anchored_edit`
   - `pi_anchored_edit_many`
   - `pi_anchored_status`
@@ -46,7 +49,7 @@ Implemented pieces:
 
 Local automated checks:
 
-- `npm run check` passes: 21 tests
+- `npm run check` passes: 23 tests
 - `npm pack --dry-run` succeeds and includes `bin/`, `docs/`, `extensions/`, `scripts/`, and `src/`
 - `npm run test:harnesses -- --skip-local` succeeds
 
@@ -69,7 +72,7 @@ Live harness checks performed:
 - Claude MCP config installed and verified as `dirac-edit-core`
 - Codex live check successfully used `anchored_search` + `anchored_edit` in a disposable workspace to change `beta` to `BETA`
 - Claude live check successfully used `mcp__dirac-edit-core__anchored_search` + `mcp__dirac-edit-core__anchored_edit` in a disposable workspace to change `beta` to `BETA`
-- The live harness now also requires `file_skeleton` + `get_function` before editing a small JavaScript function
+- The live harness now also requires `file_skeleton` + `symbol_replace` before editing a small JavaScript function
 
 Artifact logs from the latest validation runs live under `~/dev/agent-notes/dirac-edit-core/harness-*`.
 
@@ -87,11 +90,12 @@ Artifact logs from the latest validation runs live under `~/dev/agent-notes/dira
 - `2dcd129` Add reusable harness validation scripts
 - `af3096c` Add project status notes
 - `0c47cd3` Add anchored search and clearer edit guidance
+- `c66dc00` Add structural read tools
 
 ## Next good steps
 
-1. Add `symbol_replace` or another safe symbol-scoped edit helper on top of `get_function`.
+1. Add token-saving telemetry: bytes/tokens avoided, anchor map size, edit payload size, and old-vs-new tool-call comparison.
 2. Add a real Pi.dev live harness once the installed Pi CLI/tool-extension invocation is confirmed.
-3. Add token-saving telemetry: bytes/tokens avoided, anchor map size, edit payload size, and old-vs-new tool-call comparison.
+3. Compare `symbol_replace` vs anchored edit behavior on larger real files.
 4. Decide which tokenlean/cozempic pieces belong here, keeping `src/` harness-neutral.
 5. Explore convenience wrappers for Claude/Codex that preserve safety while avoiding noisy interactive MCP approval failure in background regression runs.

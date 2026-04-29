@@ -113,6 +113,37 @@ export default function diracEditCorePiExtension(pi) {
 
 
   pi.registerTool({
+    name: "pi_symbol_replace",
+    label: "symbol replace",
+    description: "Replace text only inside one named function/class/type/top-level declaration.",
+    promptSnippet: "Safely replace text scoped to one named symbol",
+    promptGuidelines: [
+      "Use pi_symbol_replace for small literal or regex replacements inside one symbol.",
+      "Use dryRun true when uncertain; it will fail without writing if the symbol or search text is missing.",
+    ],
+    executionMode: "sequential",
+    parameters: Type.Object({
+      path: Type.String({ description: "Workspace-relative file path." }),
+      name: Type.String({ description: "Symbol name whose body/range should be edited." }),
+      search: Type.String({ description: "Literal text by default, or regex when regex is true." }),
+      replacement: Type.String({ description: "Replacement text." }),
+      sessionId: Type.Optional(Type.String({ description: "Anchor session id." })),
+      regex: Type.Optional(Type.Boolean({ description: "Treat search as a JavaScript regex. Default false." })),
+      replaceAll: Type.Optional(Type.Boolean({ description: "Replace every match inside the symbol. Default false." })),
+      caseSensitive: Type.Optional(Type.Boolean({ description: "Case-sensitive matching. Default true." })),
+      dryRun: Type.Optional(Type.Boolean({ description: "Validate and preview without writing. Default false." })),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const result = await toolsFor(ctx.cwd).symbolReplace(params)
+      const text = result.ok
+        ? `${result.dryRun ? "Would replace" : "Replaced"} ${result.matches} match(es) in ${result.name} (${result.path}). ${result.beforeHash} -> ${result.afterHash}`
+        : `Symbol replace failed for ${params.path}:\n${result.errors.join("\n")}`
+      return { content: [{ type: "text", text }], details: result, isError: !result.ok }
+    },
+  })
+
+
+  pi.registerTool({
     name: "pi_anchored_edit",
     label: "anchored edit",
     description: "Apply exact anchor-targeted edits atomically. Use full Anchor§line references from pi_anchored_read or pi_anchored_search. For replace, endAnchor is required; repeat anchor for one-line replace.",
