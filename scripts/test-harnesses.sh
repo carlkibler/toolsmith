@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ARTIFACT_ROOT="${DIRAC_EDIT_CORE_ARTIFACT_DIR:-$HOME/dev/agent-notes/dirac-edit-core}"
+STAMP="$(date +%Y%m%d-%H%M%S)"
+OUT="$ARTIFACT_ROOT/harness-$STAMP"
+RUN_LIVE_CODEX=0
+RUN_LIVE_CLAUDE=0
+
+usage() {
+  cat <<'USAGE'
+Usage: scripts/test-harnesses.sh [--live] [--live-codex] [--live-claude] [--skip-local]
+
+Default checks are cheap and non-model:
+  - npm run check
+  - npm pack --dry-run
+  - codex mcp get dirac-edit-core
+  - claude mcp get dirac-edit-core
+
+Live checks use disposable temp workspaces and mutate only those temp files:
+  --live         run both Codex and Claude live MCP edit checks
+  --live-codex   run Codex live MCP edit check
+  --live-claude  run Claude live MCP edit check
+  --skip-local   skip npm/check/package checks
+
+Artifacts are written to ~/dev/agent-notes/dirac-edit-core/harness-<timestamp>/.
+USAGE
+}
+
+RUN_LOCAL=1
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --live)
+      RUN_LIVE_CODEX=1
+      RUN_LIVE_CLAUDE=1
+      ;;
+    --live-codex) RUN_LIVE_CODEX=1 ;;
+    --live-claude) RUN_LIVE_CLAUDE=1 ;;
+    --skip-local) RUN_LOCAL=0 ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 64
+      ;;
+  esac
+  shift
+done
+
+mkdir -p "$OUT"
+cd "$ROOT"
+
+log_step() {
+  printf '\n==> %s\n' "$*"
+}
+
+seed_workspace() {
+  local name="$1"
+  local dir="$OUT/$name-workspace"
+  mkdir -p "$dir"
+  cat > "$dir/sample.txt" <<'EOF'
+alpha
+beta
+gamma
+EOF
+  cat > "$dir/other.txt" <<'EOF'
+one
+two
+three
+EOF
+  printf '%s\n' "$dir"
+}
+
+assert_file_beta_changed() {
+  local file="$1"
+  local actual
+  actual="$(cat "$file")"
+  local expected=$'alpha\nBETA\ngamma'
+  if [[ "$actual" != "$expected" ]]; then
+    echo "Unexpected file content in $file" >&2
+    printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+    exit 1
+  fi
+}
+
+if [[ "$RUN_LOCAL" -eq 1 ]]; then
+  log_step "local package checks"
+  npm run check 2>&1 | tee "$OUT/npm-check.log"
+  npm pack --dry-run 2>&1 | tee "$OUT/npm-pack-dry-run.log"
+fi
+
+if command -v codex >/dev/null 2>&1; then
+  log_step "codex MCP config"
+  codex mcp get dirac-edit-core 2>&1 | tee "$OUT/codex-mcp-get.log"
+else
+  echo "codex not found" | tee "$OUT/codex-mcp-get.log"
+fi
+
+if command -v claude >/dev/null 2>&1; then
+  log_step "claude MCP config"
+  claude mcp get dirac-edit-core 2>&1 | tee "$OUT/claude-mcp-get.log"
+else
+  echo "claude not found" | tee "$OUT/claude-mcp-get.log"
+fi
+
+if [[ "$RUN_LIVE_CODEX" -eq 1 ]]; then
+  if ! command -v codex >/dev/null 2>&1; then
+    echo "codex not found; cannot run --live-codex" >&2
+    exit 1
+  fi
+  log_step "codex live MCP edit"
+  CODEX_WS="$(seed_workspace codex)"
+  CODEX_PROMPT='Use the dirac-edit-core MCP server, specifically anchored_read and anchored_edit, to change sample.txt line beta to BETA. For anchored_edit, include the full anchor reference with the § delimiter and line content exactly as returned by anchored_read, and include endAnchor for replace. Do not use shell commands or built-in file editing tools for mutation. Report final content.'
+  codex exec --json --dangerously-bypass-approvals-and-sandbox -C "$CODEX_WS" --skip-git-repo-check "$CODEX_PROMPT" \
+    2>&1 | tee "$OUT/codex-live.jsonl"
+  assert_file_beta_changed "$CODEX_WS/sample.txt"
+  grep -q '"server":"dirac-edit-core","tool":"anchored_read"' "$OUT/codex-live.jsonl"
+  grep -q '"server":"dirac-edit-core","tool":"anchored_edit"' "$OUT/codex-live.jsonl"
+fi
+
+if [[ "$RUN_LIVE_CLAUDE" -eq 1 ]]; then
+  if ! command -v claude >/dev/null 2>&1; then
+    echo "claude not found; cannot run --live-claude" >&2
+    exit 1
+  fi
+  log_step "claude live MCP edit"
+  CLAUDE_WS="$(seed_workspace claude)"
+  CLAUDE_PROMPT='Use the dirac-edit-core MCP server tools anchored_read and anchored_edit to change sample.txt line beta to BETA. For anchored_edit include the full Anchor§line reference and endAnchor. Do not use Bash or built-in Edit/Write for mutation. Report final content.'
+  (
+    cd "$CLAUDE_WS"
+    printf '%s' "$CLAUDE_PROMPT" | claude -p --dangerously-skip-permissions --verbose --output-format stream-json --debug-file "$OUT/claude-debug.log"
+  ) 2>&1 | tee "$OUT/claude-live.jsonl"
+  assert_file_beta_changed "$CLAUDE_WS/sample.txt"
+  grep -q '"name":"mcp__dirac-edit-core__anchored_read"' "$OUT/claude-live.jsonl"
+  grep -q '"name":"mcp__dirac-edit-core__anchored_edit"' "$OUT/claude-live.jsonl"
+fi
+
+log_step "done"
+echo "Artifacts: $OUT"
+

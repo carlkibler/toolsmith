@@ -91,3 +91,14 @@ Registered tools:
 npm run check
 npm pack --dry-run
 ```
+
+Reusable harness checks are available for repeated local, Codex, and Claude validation:
+
+```bash
+./scripts/install-harnesses.sh
+./scripts/test-harnesses.sh
+./scripts/test-harnesses.sh --skip-local --live-codex
+./scripts/test-harnesses.sh --skip-local --live-claude
+```
+
+See [`docs/TESTING.md`](docs/TESTING.md).

@@ -9,7 +9,10 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check src/*.js bin/*.mjs && node --test"
+    "check": "node --check src/*.js bin/*.mjs && node --test",
+    "install:harnesses": "./scripts/install-harnesses.sh",
+    "test:harnesses": "./scripts/test-harnesses.sh",
+    "test:harnesses:live": "./scripts/test-harnesses.sh --live"
   },
   "engines": {
     "node": ">=20"
@@ -35,6 +38,7 @@
     "bin/",
     "docs/",
     "extensions/",
+    "scripts/",
     "src/",
     "AGENTS.md",
     "CLAUDE.md",
