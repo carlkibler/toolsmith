@@ -68,6 +68,37 @@ export default function diracEditCorePiExtension(pi) {
   })
 
   pi.registerTool({
+    name: "pi_anchored_edit_many",
+    label: "anchored edit many",
+    description: "Apply exact anchor-targeted edits across multiple files. Validates every file before writing any file when atomic is true.",
+    promptSnippet: "Apply exact batched edits across multiple files by stable line anchors",
+    promptGuidelines: [
+      "For cross-file refactors, prefer one pi_anchored_edit_many call after reading the target files.",
+      "Use dryRun true when uncertain; atomic true prevents partial writes on stale anchors.",
+    ],
+    executionMode: "sequential",
+    parameters: Type.Object({
+      sessionId: Type.Optional(Type.String({ description: "Default anchor session id used for files without their own sessionId." })),
+      files: Type.Array(Type.Object({
+        path: Type.String({ description: "Workspace-relative file path." }),
+        sessionId: Type.Optional(Type.String({ description: "Optional per-file anchor session id." })),
+        edits: Type.Array(editSchema, { minItems: 1 }),
+      }), { minItems: 1 }),
+      atomic: Type.Optional(Type.Boolean({ description: "Abort entire multi-file batch if any edit fails. Default true." })),
+      dryRun: Type.Optional(Type.Boolean({ description: "Validate and preview without writing. Default false." })),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      const result = await toolsFor(ctx.cwd).editMany(params)
+      const edited = result.files.reduce((sum, file) => sum + (file.applied?.length || 0), 0)
+      const text = result.ok
+        ? `${result.dryRun ? "Would apply" : "Applied"} ${edited} anchored edit(s) across ${result.files.length} file(s).`
+        : `Multi-file anchored edit failed:\n${result.errors.join("\n")}`
+      return { content: [{ type: "text", text }], details: result, isError: !result.ok }
+    },
+  })
+
+
+  pi.registerTool({
     name: "pi_anchored_status",
     label: "anchored status",
     description: "Report dirac-edit-core Pi extension status.",

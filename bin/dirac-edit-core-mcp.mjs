@@ -64,6 +64,37 @@ server.registerTool(
   },
 )
 
+
+server.registerTool(
+  "anchored_edit_many",
+  {
+    title: "Anchored Edit Many",
+    description: "Apply exact anchor-targeted edits across multiple files. Validates every file before writing any file when atomic is true.",
+    inputSchema: {
+      sessionId: z.string().optional().describe("Default anchor session id used for files without their own sessionId."),
+      files: z.array(z.object({
+        path: z.string(),
+        sessionId: z.string().optional(),
+        edits: z.array(editSchema).min(1),
+      })).min(1),
+      atomic: z.boolean().optional().describe("Abort entire multi-file batch if any edit fails. Default true."),
+      dryRun: z.boolean().optional().describe("Validate and preview without writing. Default false."),
+    },
+  },
+  async (args) => {
+    const result = await workspace.editMany(args)
+    const edited = result.files.reduce((sum, file) => sum + (file.applied?.length || 0), 0)
+    const summary = result.ok
+      ? `${result.dryRun ? "Would apply" : "Applied"} ${edited} anchored edit(s) across ${result.files.length} file(s).`
+      : `Multi-file anchored edit failed:\n${result.errors.join("\n")}`
+    return {
+      content: [{ type: "text", text: summary }],
+      structuredContent: result,
+      isError: !result.ok,
+    }
+  },
+)
+
 server.registerTool(
   "anchored_edit_status",
   {

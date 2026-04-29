@@ -85,3 +85,88 @@ test("MCP server lists and calls anchored tools", async () => {
     await client.close()
   }
 })
+
+test("WorkspaceTools editMany validates all files before writing any file", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "one.txt"), "a\nb", "utf8")
+  await fs.writeFile(path.join(cwd, "two.txt"), "c\nd", "utf8")
+  const tools = new WorkspaceTools({ cwd })
+
+  const one = await tools.read({ path: "one.txt", sessionId: "many" })
+  const two = await tools.read({ path: "two.txt", sessionId: "many" })
+  const aLine = `${one.anchors[0]}§a`
+  const staleDLine = `${two.anchors[1]}§not-d`
+
+  const result = await tools.editMany({
+    sessionId: "many",
+    files: [
+      { path: "one.txt", edits: [{ type: "replace", anchor: aLine, endAnchor: aLine, text: "A" }] },
+      { path: "two.txt", edits: [{ type: "replace", anchor: staleDLine, endAnchor: staleDLine, text: "D" }] },
+    ],
+  })
+
+  assert.equal(result.ok, false)
+  assert.equal(await fs.readFile(path.join(cwd, "one.txt"), "utf8"), "a\nb")
+  assert.equal(await fs.readFile(path.join(cwd, "two.txt"), "utf8"), "c\nd")
+})
+
+test("WorkspaceTools dryRun validates without writing", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "demo.txt"), "one\ntwo", "utf8")
+  const tools = new WorkspaceTools({ cwd })
+  const read = await tools.read({ path: "demo.txt", sessionId: "dry" })
+  const oneLine = `${read.anchors[0]}§one`
+
+  const result = await tools.edit({
+    path: "demo.txt",
+    sessionId: "dry",
+    dryRun: true,
+    edits: [{ type: "replace", anchor: oneLine, endAnchor: oneLine, text: "ONE" }],
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.changed, true)
+  assert.equal(await fs.readFile(path.join(cwd, "demo.txt"), "utf8"), "one\ntwo")
+})
+
+test("MCP anchored_edit_many applies cross-file batch", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "one.txt"), "a\nb", "utf8")
+  await fs.writeFile(path.join(cwd, "two.txt"), "c\nd", "utf8")
+
+  const client = new Client({ name: "dirac-edit-core-test", version: "0.1.0" })
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [path.resolve("bin/dirac-edit-core-mcp.mjs")],
+    cwd,
+    stderr: "pipe",
+  })
+
+  try {
+    await client.connect(transport)
+    const tools = await client.listTools()
+    assert(tools.tools.some((tool) => tool.name === "anchored_edit_many"))
+
+    const oneRead = await client.callTool({ name: "anchored_read", arguments: { path: "one.txt", sessionId: "many-mcp" } })
+    const twoRead = await client.callTool({ name: "anchored_read", arguments: { path: "two.txt", sessionId: "many-mcp" } })
+    const aLine = oneRead.content[0].text.split("\n").find((line) => line.endsWith("§a"))
+    const dLine = twoRead.content[0].text.split("\n").find((line) => line.endsWith("§d"))
+
+    const result = await client.callTool({
+      name: "anchored_edit_many",
+      arguments: {
+        sessionId: "many-mcp",
+        files: [
+          { path: "one.txt", edits: [{ type: "replace", anchor: aLine, endAnchor: aLine, text: "A" }] },
+          { path: "two.txt", edits: [{ type: "replace", anchor: dLine, endAnchor: dLine, text: "D" }] },
+        ],
+      },
+    })
+
+    assert.equal(result.isError, false)
+    assert.equal(await fs.readFile(path.join(cwd, "one.txt"), "utf8"), "A\nb")
+    assert.equal(await fs.readFile(path.join(cwd, "two.txt"), "utf8"), "c\nD")
+  } finally {
+    await client.close()
+  }
+})

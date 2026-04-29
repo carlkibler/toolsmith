@@ -37,7 +37,7 @@ Implemented initially as `extensions/pi-dirac-edit-core.js`. A Pi package can fe
 - Core anchor/read/edit unit tests.
 - Filesystem wrapper tests with temp workspaces.
 - CLI smoke test.
-- MCP stdio integration test using the official MCP SDK client transport.
-- Pi extension registration/execution test with a fake ExtensionAPI and temp workspace.
+- MCP stdio integration test using the official MCP SDK client transport, including multi-file edits.
+- Pi extension registration/execution test with a fake ExtensionAPI and temp workspace, including atomic multi-file failure behavior.
 
 Remaining manual-ish validation later: install the package into real Pi/Codex/Claude configs and watch a model choose the tools naturally. That requires either user-visible config changes or live model calls, so it is intentionally not part of the default automated suite yet.

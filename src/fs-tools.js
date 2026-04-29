@@ -52,6 +52,56 @@ export class WorkspaceTools {
     }
   }
 
+  async editMany({ files, sessionId = "default", atomic = true, dryRun = false }) {
+    if (!Array.isArray(files) || files.length === 0) throw new Error("files must be a non-empty array")
+
+    const prepared = []
+    const errors = []
+
+    for (const file of files) {
+      try {
+        const { absolute, relative } = this.resolvePath(file.path)
+        await this.#assertReadableSize(absolute)
+        const before = await fs.readFile(absolute, "utf8")
+        const result = applyAnchoredEdits({
+          path: relative,
+          content: before,
+          store: this.store,
+          sessionId: file.sessionId || sessionId,
+          edits: file.edits,
+          atomic,
+        })
+        const changed = result.content !== before
+        const item = {
+          ...result,
+          path: relative,
+          dryRun,
+          changed,
+          beforeHash: contentHash(before),
+          afterHash: contentHash(result.content),
+        }
+        prepared.push({ absolute, item })
+        if (!result.ok) errors.push(...result.errors.map((error) => `${relative}: ${error}`))
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        errors.push(`${file?.path || "<unknown>"}: ${message}`)
+      }
+    }
+
+    if (errors.length > 0 && atomic) {
+      return { ok: false, dryRun, errors, files: prepared.map((entry) => entry.item) }
+    }
+
+    const writable = errors.length > 0 ? prepared.filter((entry) => entry.item.ok) : prepared
+    if (!dryRun) {
+      for (const entry of writable) {
+        if (entry.item.changed) await fs.writeFile(entry.absolute, entry.item.content, "utf8")
+      }
+    }
+
+    return { ok: errors.length === 0, dryRun, errors, files: prepared.map((entry) => entry.item) }
+  }
+
   async #assertReadableSize(absolute) {
     const stats = await fs.stat(absolute)
     if (!stats.isFile()) throw new Error(`not a file: ${absolute}`)

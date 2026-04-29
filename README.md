@@ -63,6 +63,7 @@ Tools:
 
 - `anchored_read` — returns `[File Hash: ...]` and `Anchor§line` content.
 - `anchored_edit` — applies exact batched edits; stale or inexact anchors fail before writing.
+- `anchored_edit_many` — validates and applies exact edits across multiple files.
 - `anchored_edit_status` — smoke-test/status tool.
 
 For Codex/Claude-style MCP config, point the command at `bin/dirac-edit-core-mcp.mjs` or an installed `dirac-edit-core-mcp` binary and set the working directory to the target repo.
@@ -81,6 +82,7 @@ Registered tools:
 
 - `pi_anchored_read`
 - `pi_anchored_edit`
+- `pi_anchored_edit_many`
 - `pi_anchored_status`
 
 ## Verification

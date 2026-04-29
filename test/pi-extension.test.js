@@ -15,6 +15,7 @@ test("Pi extension registers anchored tools and executes them", async () => {
 
   assert(registered.has("pi_anchored_read"))
   assert(registered.has("pi_anchored_edit"))
+  assert(registered.has("pi_anchored_edit_many"))
   assert(registered.has("pi_anchored_status"))
 
   const cwd = await tempWorkspace()
@@ -34,4 +35,31 @@ test("Pi extension registers anchored tools and executes them", async () => {
   assert.equal(edit.isError, false)
   assert.match(edit.content[0].text, /Applied 1 anchored edit/)
   assert.equal(await fs.readFile(path.join(cwd, "demo.txt"), "utf8"), "cat\nDOG\neel")
+})
+
+test("Pi extension multi-file tool validates before writing", async () => {
+  const registered = new Map()
+  extension({ registerTool(tool) { registered.set(tool.name, tool) } })
+
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "left.txt"), "left\nkeep", "utf8")
+  await fs.writeFile(path.join(cwd, "right.txt"), "right\nkeep", "utf8")
+  const ctx = { cwd }
+
+  const leftRead = await registered.get("pi_anchored_read").execute("call-1", { path: "left.txt", sessionId: "pi-many" }, undefined, undefined, ctx)
+  const rightRead = await registered.get("pi_anchored_read").execute("call-2", { path: "right.txt", sessionId: "pi-many" }, undefined, undefined, ctx)
+  const leftLine = leftRead.content[0].text.split("\n").find((line) => line.endsWith("§left"))
+  const staleRightLine = rightRead.content[0].text.split("\n").find((line) => line.endsWith("§right")).replace("right", "stale")
+
+  const result = await registered.get("pi_anchored_edit_many").execute("call-3", {
+    sessionId: "pi-many",
+    files: [
+      { path: "left.txt", edits: [{ type: "replace", anchor: leftLine, endAnchor: leftLine, text: "LEFT" }] },
+      { path: "right.txt", edits: [{ type: "replace", anchor: staleRightLine, endAnchor: staleRightLine, text: "RIGHT" }] },
+    ],
+  }, undefined, undefined, ctx)
+
+  assert.equal(result.isError, true)
+  assert.equal(await fs.readFile(path.join(cwd, "left.txt"), "utf8"), "left\nkeep")
+  assert.equal(await fs.readFile(path.join(cwd, "right.txt"), "utf8"), "right\nkeep")
 })

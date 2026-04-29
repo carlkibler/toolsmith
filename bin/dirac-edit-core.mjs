@@ -10,6 +10,7 @@ function usage() {
   console.error(`Usage:
   dirac-edit-core read <path> [--start N] [--end N] [--session ID]
   dirac-edit-core edit <path> --edits edits.json [--dry-run] [--session ID]
+  dirac-edit-core edit-many files.json [--dry-run] [--session ID]
   dirac-edit-core mcp
 `)
 }
