@@ -1,10 +1,18 @@
 #!/usr/bin/env node
 import fs from "node:fs/promises"
+import { existsSync, readFileSync, appendFileSync, writeFileSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { fileURLToPath } from "node:url"
+import { homedir } from "node:os"
+import path from "node:path"
 import { WorkspaceTools } from "../src/fs-tools.js"
 
 const command = process.argv[2]
 const args = process.argv.slice(3)
 const tools = new WorkspaceTools({ cwd: process.cwd() })
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const MCP_BIN = path.join(__dirname, "toolsmith-mcp.mjs")
 
 function usage() {
   console.error(`Usage:
@@ -16,6 +24,8 @@ function usage() {
   toolsmith edit <path> --edits edits.json [--dry-run] [--session ID]
   toolsmith edit-many files.json [--dry-run] [--session ID]
   toolsmith mcp
+  toolsmith setup [--scope user|project|local] [--force]
+  toolsmith doctor
 `)
 }
 
@@ -24,9 +34,111 @@ function option(name) {
   return index === -1 ? undefined : args[index + 1]
 }
 
+function tryClaude(claudeArgs) {
+  try {
+    return execFileSync("claude", claudeArgs, { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] })
+  } catch (e) {
+    if (e.code === "ENOENT") return null
+    return { error: (e.stderr?.toString() || e.message || "").trim() }
+  }
+}
+
+function setupClaude(scope, force) {
+  const list = tryClaude(["mcp", "list"])
+  if (list === null) { console.log("  claude: not found — skipping"); return }
+  if (list?.error) { console.log(`  Claude Code: error checking — ${list.error}`); return }
+
+  const registered = list.includes("toolsmith")
+  if (registered && !force) { console.log("  Claude Code: already registered (--force to update)"); return }
+
+  if (registered) tryClaude(["mcp", "remove", "toolsmith"])
+
+  const result = tryClaude(["mcp", "add", "--scope", scope, "toolsmith", "--", process.execPath, MCP_BIN])
+  if (result?.error) {
+    console.log(`  Claude Code: failed — ${result.error}`)
+  } else {
+    console.log(`  Claude Code: registered (scope: ${scope})`)
+  }
+}
+
+function setupCodex(force) {
+  const codexDir = path.join(homedir(), ".codex")
+  const codexConfig = path.join(codexDir, "config.toml")
+  if (!existsSync(codexDir)) { console.log("  Codex: not found — skipping"); return }
+
+  const existing = existsSync(codexConfig) ? readFileSync(codexConfig, "utf8") : ""
+  const registered = existing.includes("[mcp_servers.toolsmith]")
+
+  if (registered && !force) { console.log("  Codex: already configured (--force to update)"); return }
+
+  let content = existing
+  if (registered) {
+    // Remove the existing toolsmith block (up to the next section header or EOF)
+    content = existing.replace(/\n?\[mcp_servers\.toolsmith\][^\[]*/, "").trimEnd() + "\n"
+  }
+
+  const entry = `\n[mcp_servers.toolsmith]\ncommand = ${JSON.stringify(process.execPath)}\nargs = [${JSON.stringify(MCP_BIN)}]\n`
+  try {
+    writeFileSync(codexConfig, content + entry, "utf8")
+    console.log(`  Codex: ${registered ? "updated" : "registered"}`)
+  } catch (e) {
+    console.log(`  Codex: failed — ${e.message}`)
+  }
+}
+
+function runSetup() {
+  const scope = option("--scope") || "user"
+  const force = args.includes("--force")
+  console.log("Setting up toolsmith...\n")
+  setupClaude(scope, force)
+  setupCodex(force)
+  console.log("\nDone. Run 'toolsmith doctor' to verify.")
+}
+
+function runDoctor() {
+  let warnings = 0
+  const ok = (msg) => console.log(`  ok   ${msg}`)
+  const warn = (msg) => { console.log(`  warn ${msg}`); warnings++ }
+  const info = (msg) => console.log(`  info ${msg}`)
+
+  console.log("toolsmith doctor\n")
+
+  const major = Number(process.version.slice(1).split(".")[0])
+  if (major < 20) warn(`Node.js ${process.version} — need >=20`); else ok(`Node.js ${process.version}`)
+
+  if (existsSync(MCP_BIN)) ok(`toolsmith-mcp at ${MCP_BIN}`); else warn(`toolsmith-mcp not found at ${MCP_BIN}`)
+
+  const list = tryClaude(["mcp", "list"])
+  if (list === null) {
+    info("claude not found")
+  } else if (list?.error) {
+    warn(`Claude Code check failed — ${list.error}`)
+  } else if (list.includes("toolsmith")) {
+    ok("Claude Code: toolsmith registered")
+  } else {
+    warn("Claude Code: toolsmith not registered — run 'toolsmith setup'")
+  }
+
+  const codexConfig = path.join(homedir(), ".codex", "config.toml")
+  if (!existsSync(path.join(homedir(), ".codex"))) {
+    info("Codex not found")
+  } else if (existsSync(codexConfig) && readFileSync(codexConfig, "utf8").includes("[mcp_servers.toolsmith]")) {
+    ok("Codex: toolsmith registered")
+  } else {
+    warn("Codex: toolsmith not registered — run 'toolsmith setup'")
+  }
+
+  console.log(warnings > 0 ? `\n${warnings} warning(s).` : "\nAll checks passed.")
+  if (warnings > 0) process.exitCode = 1
+}
+
 try {
   if (command === "mcp") {
     await import("./toolsmith-mcp.mjs")
+  } else if (command === "setup") {
+    runSetup()
+  } else if (command === "doctor") {
+    runDoctor()
   } else if (command === "read") {
     const target = args[0]
     const result = await tools.read({
