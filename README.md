@@ -92,7 +92,7 @@ Tools:
 - `anchored_edit_many` — validates and applies exact edits across multiple files.
 - `anchored_edit_status` — smoke-test/status tool.
 
-For Codex/Claude-style MCP config, point the command at `bin/toolsmith-mcp.mjs` or an installed `toolsmith-mcp` binary and set the working directory to the target repo.
+For Codex/Claude-style MCP config, point the command at `bin/toolsmith-mcp.js` or an installed `toolsmith-mcp` binary and set the working directory to the target repo.
 
 ## Pi.dev Extension
 

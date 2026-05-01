@@ -29,7 +29,7 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check src/*.js bin/*.mjs && node --test",
+    "check": "node --check src/*.js bin/*.js && node --test",
     "install:harnesses": "./scripts/install-harnesses.sh",
     "test:harnesses": "./scripts/test-harnesses.sh",
     "test:harnesses:live": "./scripts/test-harnesses.sh --live"
@@ -43,8 +43,8 @@
     "zod": "^3.25.76"
   },
   "bin": {
-    "toolsmith": "./bin/toolsmith.mjs",
-    "toolsmith-mcp": "./bin/toolsmith-mcp.mjs"
+    "toolsmith": "./bin/toolsmith.js",
+    "toolsmith-mcp": "./bin/toolsmith-mcp.js"
   },
   "pi": {
     "extensions": [

@@ -58,7 +58,7 @@ test("CLI read emits anchored content", async () => {
   const cwd = await tempWorkspace()
   await fs.writeFile(path.join(cwd, "demo.txt"), "alpha\nbeta", "utf8")
 
-  const { stdout } = await execFileAsync(process.execPath, [path.resolve("bin/toolsmith.mjs"), "read", "demo.txt"], { cwd })
+  const { stdout } = await execFileAsync(process.execPath, [path.resolve("bin/toolsmith.js"), "read", "demo.txt"], { cwd })
   assert.match(stdout, /\[File Hash: [a-f0-9]{8}\]/)
   assert.match(stdout, /§alpha/)
 })
@@ -70,7 +70,7 @@ test("MCP server lists and calls anchored tools", async () => {
   const client = new Client({ name: "toolsmith-test", version: "0.1.0" })
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [path.resolve("bin/toolsmith-mcp.mjs")],
+    args: [path.resolve("bin/toolsmith-mcp.js")],
     cwd,
     stderr: "pipe",
   })
@@ -188,7 +188,7 @@ test("MCP anchored_edit_many applies cross-file batch", async () => {
   const client = new Client({ name: "toolsmith-test", version: "0.1.0" })
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [path.resolve("bin/toolsmith-mcp.mjs")],
+    args: [path.resolve("bin/toolsmith-mcp.js")],
     cwd,
     stderr: "pipe",
   })

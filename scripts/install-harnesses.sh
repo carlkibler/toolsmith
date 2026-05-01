@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVER="$ROOT/bin/toolsmith-mcp.mjs"
+SERVER="$ROOT/bin/toolsmith-mcp.js"
 
 if [[ ! -f "$SERVER" ]]; then
   echo "Missing MCP server: $SERVER" >&2

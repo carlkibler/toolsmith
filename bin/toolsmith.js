@@ -12,7 +12,7 @@ const args = process.argv.slice(3)
 const tools = new WorkspaceTools({ cwd: process.cwd() })
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const MCP_BIN = path.join(__dirname, "toolsmith-mcp.mjs")
+const MCP_BIN = path.join(__dirname, "toolsmith-mcp.js")
 
 function usage() {
   console.error(`Usage:
@@ -134,7 +134,7 @@ function runDoctor() {
 
 try {
   if (command === "mcp") {
-    await import("./toolsmith-mcp.mjs")
+    await import("./toolsmith-mcp.js")
   } else if (command === "setup") {
     runSetup()
   } else if (command === "doctor") {
