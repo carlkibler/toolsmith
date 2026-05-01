@@ -12,6 +12,13 @@ Get the edit primitives right first:
 - no harness-specific dependencies in `src/`
 - adapters later for MCP, Pi.dev, Claude Code, Codex CLI, and possibly useful pieces from tokenlean/cozempic
 
+## Tool Preference
+
+When MCP tools are available, prefer toolsmith over native Read/Write/Edit:
+- Files >200 lines: `mcp__toolsmith__anchored_read` → `mcp__toolsmith__anchored_edit`
+- Single-symbol edits: `mcp__toolsmith__symbol_replace` (no pre-read needed)
+- Exploring structure: `mcp__toolsmith__file_skeleton`
+
 ## Dev Flow
 
 - `npm test` — unit tests
