@@ -7,9 +7,17 @@ Reads return stable opaque line anchors; edits validate anchor + line content be
 ## Installation
 
 ```bash
-npm install @carlkibler/toolsmith
-# or globally for the CLI and MCP server:
 npm install -g @carlkibler/toolsmith
+toolsmith setup          # registers MCP with Claude Code and Codex
+toolsmith doctor         # verify everything is wired up
+```
+
+Re-run `toolsmith setup` after upgrading. Use `--force` to overwrite an existing registration. Works on any machine — uses the local node binary path, so NVM and system Node both work without extra config.
+
+To install without global:
+
+```bash
+npm install @carlkibler/toolsmith
 ```
 
 ## Example
