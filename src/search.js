@@ -1,6 +1,7 @@
 import { contentHash } from "./hash.js"
 import { formatAnchoredLine, splitLines } from "./anchors.js"
 import { makeTelemetry } from "./telemetry.js"
+import { checkRegexSafety } from "./regex-safety.js"
 
 export function searchAnchored({ path, content, store, sessionId, query, regex = false, caseSensitive = false, contextLines = 1, maxMatches = 20 }) {
   if (!store) throw new Error("searchAnchored requires an AnchorStore")
@@ -38,12 +39,15 @@ export function searchAnchored({ path, content, store, sessionId, query, regex =
 function makeMatcher(query, { regex, caseSensitive }) {
   if (regex) {
     if (query.length > 1024) throw new Error("regex pattern too long (max 1024 chars)")
+    const flags = caseSensitive ? "" : "i"
+    let pattern
     try {
-      const pattern = new RegExp(query, caseSensitive ? "" : "i")
-      return (line) => pattern.test(line)
+      pattern = new RegExp(query, flags)
     } catch (e) {
       throw new Error(`invalid regex: ${e.message}`)
     }
+    checkRegexSafety(query, flags)
+    return (line) => pattern.test(line)
   }
   const needle = caseSensitive ? query : query.toLowerCase()
   return (line) => (caseSensitive ? line : line.toLowerCase()).includes(needle)

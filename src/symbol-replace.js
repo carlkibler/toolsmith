@@ -1,6 +1,7 @@
 import { splitLines } from "./anchors.js"
 import { contentHash } from "./hash.js"
 import { findSymbolRange } from "./structure.js"
+import { checkRegexSafety } from "./regex-safety.js"
 
 export function symbolReplace({ path, content, store, sessionId, name, search, replacement = "", regex = false, replaceAll = false, caseSensitive = true }) {
   if (!store) throw new Error("symbolReplace requires an AnchorStore")
@@ -51,12 +52,17 @@ export function symbolReplace({ path, content, store, sessionId, name, search, r
 function replaceInText(text, { search, replacement, regex, replaceAll, caseSensitive }) {
   if (regex) {
     if (search.length > 1024) return { text, matches: 0, regexError: "regex pattern too long (max 1024 chars)" }
+    const flags = `${replaceAll ? "g" : ""}${caseSensitive ? "" : "i"}`
     let pattern
     try {
-      const flags = `${replaceAll ? "g" : ""}${caseSensitive ? "" : "i"}`
       pattern = new RegExp(search, flags)
     } catch (e) {
       return { text, matches: 0, regexError: `invalid regex: ${e.message}` }
+    }
+    try {
+      checkRegexSafety(search, flags)
+    } catch (e) {
+      return { text, matches: 0, regexError: e.message }
     }
     let matches = 0
     const replaced = text.replace(pattern, (...args) => {
