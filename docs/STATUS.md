@@ -1,6 +1,6 @@
 # Project Status
 
-Updated: 2026-04-29
+Updated: 2026-04-29 (post multi-language expansion)
 
 ## What exists now
 
@@ -50,7 +50,7 @@ Implemented pieces:
 
 Local automated checks:
 
-- `npm run check` passes: 24 tests
+- `npm run check` passes: 38 tests
 - `npm pack --dry-run` succeeds and includes `bin/`, `docs/`, `extensions/`, `scripts/`, and `src/`
 - `npm run test:harnesses -- --skip-local` succeeds
 
@@ -66,6 +66,10 @@ Integration coverage in tests:
 - multi-file MCP edit validation
 - Pi extension registration/execution with a fake ExtensionAPI
 - Pi multi-file atomic failure behavior
+- multi-language skeleton and symbol detection: TypeScript, Python, Rust, Go
+- partial read (startLine/endLine) correctness and token savings
+- telemetry math: tokens avoided on partial reads, searches, and skeleton vs full file
+- session store isolation: edits in one session do not affect another session's anchor tracking
 
 Live harness checks performed:
 
@@ -95,10 +99,26 @@ Artifact logs from the latest validation runs live under `~/dev/agent-notes/tool
 - `9b31fdd` Add token savings telemetry
 - `071ee5e` Add symbol-scoped replace tool
 
+## Language coverage
+
+`fileSkeleton` and `getFunction`/`findSymbolStart` recognize declarations in:
+
+| Language | Patterns |
+|---|---|
+| JavaScript | `function`, `async function`, `const/let/var = (` or `= x =>`, `class`, `import`, `export` |
+| TypeScript | All JS patterns plus `interface`, `type`, `export default function` |
+| Python | `def`, `async def`, `class` |
+| Rust | `fn`, `async fn`, `pub fn`, `pub(crate) fn`, `struct`, `enum`, `trait`, `impl` (with optional `pub` prefix) |
+| Go | `func`, `type ... struct` |
+| Swift | `func`, `class`, `struct`, `enum`, `protocol`, `extension` |
+| Ruby | `def`, `class`, `module` |
+
+End-detection uses brace-counting for brace languages (JS/TS/Rust/Go/Swift/C-family) and indent-tracking for Python. Ruby `end` keyword is not special-cased — the indent tracker returns the last indented line before the `end`, which is close enough for symbol extraction.
+
 ## Next good steps
 
-1. Add a CLI/report mode to compare old-vs-new tool-call payloads on larger real files.
-2. Add a real Pi.dev live harness once the installed Pi CLI/tool-extension invocation is confirmed.
-3. Compare `symbol_replace` vs anchored edit behavior on larger real files.
+1. Add a CLI/report mode to compare tool-call payloads on larger real files (demonstrates savings concretely).
+2. Add a real Pi.dev live harness once Pi CLI/extension invocation is confirmed.
+3. Compare `symbol_replace` vs `anchored_edit` on larger real files for guidance to agents.
 4. Decide which tokenlean/cozempic pieces belong here, keeping `src/` harness-neutral.
-5. Explore convenience wrappers for Claude/Codex that preserve safety while avoiding noisy interactive MCP approval failure in background regression runs.
+5. Explore convenience wrappers for Claude/Codex that preserve safety while avoiding interactive MCP approval failure in background regression runs.

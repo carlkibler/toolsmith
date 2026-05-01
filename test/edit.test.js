@@ -154,3 +154,55 @@ test("edit validation suggests exact full anchor reference", () => {
   assert.equal(result.ok, false)
   assert.match(result.errors[0], new RegExp(`${read.anchors[1]}${ANCHOR_DELIMITER}two`))
 })
+
+test("anchored_read telemetry reports tokens avoided on partial read", () => {
+  const store = new AnchorStore()
+  // 100 long lines so a 3-line slice is clearly smaller than the full file
+  const content = Array.from({ length: 100 }, (_, i) =>
+    `const someVeryLongVariableName${i} = ${i} * 100 + Math.floor(Math.random() * 1000) + "extra padding text here"`,
+  ).join("\n")
+  const partial = readAnchored({ path: "a.txt", content, store, sessionId: "s", startLine: 10, endLine: 12 })
+
+  assert.equal(partial.telemetry.operation, "anchored_read")
+  assert(partial.telemetry.estimatedTokensAvoided > 0, "partial read should report tokens avoided")
+  assert(partial.telemetry.responseBytes < partial.telemetry.fullBytes, "partial response smaller than full file")
+  assert.equal(partial.anchors.length, 3)
+  assert.equal(partial.startLine, 10)
+  assert.equal(partial.endLine, 12)
+})
+
+test("different sessionIds have isolated anchor stores after edits", () => {
+  const store = new AnchorStore()
+  const original = "alpha\nbeta\ngamma"
+
+  const s1 = readAnchored({ path: "f.txt", content: original, store, sessionId: "s1" })
+  readAnchored({ path: "f.txt", content: original, store, sessionId: "s2" })
+
+  const betaAnchor = s1.anchors[1]
+
+  // s1 edits beta → BETA, updating s1's store to track the new content
+  applyAnchoredEdits({
+    path: "f.txt",
+    content: original,
+    store,
+    sessionId: "s1",
+    edits: [{ type: "replace", anchor: `${betaAnchor}§beta`, endAnchor: `${betaAnchor}§beta`, text: "BETA" }],
+  })
+
+  const s1State = store.get("f.txt", { sessionId: "s1" })
+  const s2State = store.get("f.txt", { sessionId: "s2" })
+
+  // s1's store reflects the edit: beta anchor is gone, replaced by a new anchor for BETA
+  assert(!s1State.anchors.includes(betaAnchor), "s1 store should no longer track the old beta anchor")
+  // s2's store is unaffected: still tracks original content with beta anchor intact
+  assert(s2State.anchors.includes(betaAnchor), "s2 store is isolated from s1's edit")
+})
+
+test("searchAnchored telemetry shows tokens avoided vs full file", () => {
+  const store = new AnchorStore()
+  const content = Array.from({ length: 50 }, (_, i) => `line ${i + 1}`).join("\n")
+  const result = searchAnchored({ path: "big.txt", content, store, sessionId: "s", query: "line 25", contextLines: 0 })
+
+  assert(result.telemetry.estimatedTokensAvoided > 0, "search result is much smaller than the full file")
+  assert.equal(result.matches.length, 1)
+})

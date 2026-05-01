@@ -52,16 +52,24 @@ export function getFunction({ path, content, store, sessionId, name, contextLine
 }
 
 function isSkeletonLine(line) {
-  const trimmed = line.trim()
-  if (!trimmed || trimmed.startsWith("//") || trimmed.startsWith("#")) return false
-  return /^(import|export\s+|from\s+|class\s+|def\s+|async\s+def\s+|function\s+|async\s+function\s+|const\s+\w+\s*=\s*(?:async\s*)?\(|let\s+\w+\s*=\s*(?:async\s*)?\(|var\s+\w+\s*=\s*(?:async\s*)?\(|struct\s+|enum\s+|protocol\s+|interface\s+|type\s+)/u.test(trimmed)
+  const t = line.trim()
+  if (!t || t.startsWith("//") || t.startsWith("#") || t.startsWith("--") || t.startsWith("/*")) return false
+  return (
+    /^(?:import|from)\s+/u.test(t) ||
+    /^export(?:\s+default)?\s+/u.test(t) ||
+    /^(?:async\s+)?(?:function|def)\s+/u.test(t) ||
+    /^(?:pub(?:\s*\([^)]*\))?\s+)?(?:async\s+)?fn\s+/u.test(t) ||
+    /^func\s+/u.test(t) ||
+    /^(?:pub(?:\s*\([^)]*\))?\s+)?(?:class|struct|enum|protocol|interface|trait|impl|module|extension|type)\s+/u.test(t) ||
+    /^(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?(?:\(|\w+\s*=>)/u.test(t)
+  )
 }
 
 function classifyLine(line) {
-  const trimmed = line.trim()
-  if (/^(import|from\s+)/u.test(trimmed)) return "import"
-  if (/class\s+/u.test(trimmed)) return "class"
-  if (/^(struct|enum|protocol|interface|type)\s+/u.test(trimmed)) return "type"
+  const t = line.trim()
+  if (/^(?:import|from)\s+/u.test(t)) return "import"
+  if (/\bclass\s+/u.test(t)) return "class"
+  if (/\b(?:struct|enum|protocol|interface|type|trait|impl|module|extension)\s+/u.test(t)) return "type"
   return "function"
 }
 
@@ -78,12 +86,14 @@ export function findSymbolRange(lines, name) {
 }
 
 function findSymbolStart(lines, name) {
-  const escaped = escapeRegExp(name)
+  const e = escapeRegExp(name)
   const patterns = [
-    new RegExp(`\\b(?:export\\s+)?(?:async\\s+)?function\\s+${escaped}\\b`),
-    new RegExp(`\\b(?:export\\s+)?(?:class|def|struct|enum|protocol|interface|type)\\s+${escaped}\\b`),
-    new RegExp(`\\b(?:export\\s+)?(?:const|let|var)\\s+${escaped}\\s*=`),
-    new RegExp(`\\b${escaped}\\s*[:=]\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*=>)`),
+    new RegExp(`\\b(?:export\\s+(?:default\\s+)?)?(?:async\\s+)?function\\s+${e}\\b`),
+    new RegExp(`\\b(?:export\\s+)?(?:class|def|struct|enum|protocol|interface|type|trait|impl|module|extension)\\s+${e}\\b`),
+    new RegExp(`\\b(?:export\\s+)?(?:const|let|var)\\s+${e}\\s*=`),
+    new RegExp(`\\b${e}\\s*[:=]\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*=>)`),
+    new RegExp(`\\b(?:pub(?:\\s*\\([^)]*\\))?\\s+)?(?:async\\s+)?fn\\s+${e}\\b`),
+    new RegExp(`\\bfunc\\s+${e}\\b`),
   ]
   return lines.findIndex((line) => patterns.some((pattern) => pattern.test(line)))
 }

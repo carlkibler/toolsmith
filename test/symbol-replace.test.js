@@ -41,6 +41,21 @@ test("symbolReplace fails without writing content when search missing", () => {
 })
 
 
+test("symbolReplace returns failure shape for invalid regex without throwing", () => {
+  const store = new AnchorStore()
+  const result = symbolReplace({ path: "demo.js", content, store, sessionId: "sym", name: "beta", search: "(unclosed", replacement: "x", regex: true })
+  assert.equal(result.ok, false)
+  assert.match(result.errors[0], /invalid regex/)
+})
+
+test("symbolReplace returns failure shape for regex pattern exceeding length cap", () => {
+  const store = new AnchorStore()
+  const longPattern = "a".repeat(1025)
+  const result = symbolReplace({ path: "demo.js", content, store, sessionId: "sym", name: "beta", search: longPattern, replacement: "x", regex: true })
+  assert.equal(result.ok, false)
+  assert.match(result.errors[0], /too long/)
+})
+
 test("WorkspaceTools symbolReplace includes telemetry", async () => {
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-telemetry-"))
   await fs.writeFile(path.join(cwd, "demo.js"), content, "utf8")

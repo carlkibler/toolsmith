@@ -12,6 +12,8 @@ import { makeTelemetry } from "./telemetry.js"
 const DEFAULT_MAX_BYTES = 512 * 1024
 
 export class WorkspaceTools {
+  #realCwd = null
+
   constructor({ cwd = process.cwd(), store = new AnchorStore(), maxBytes = DEFAULT_MAX_BYTES } = {}) {
     this.cwd = path.resolve(cwd)
     this.store = store
@@ -30,6 +32,7 @@ export class WorkspaceTools {
 
   async read({ path: inputPath, sessionId = "default", startLine, endLine }) {
     const { absolute, relative } = this.resolvePath(inputPath)
+    await this.#assertContained(absolute)
     await this.#assertReadableSize(absolute)
     const content = await fs.readFile(absolute, "utf8")
     return readAnchored({ path: relative, content, store: this.store, sessionId, startLine, endLine })
@@ -38,6 +41,7 @@ export class WorkspaceTools {
 
   async search({ path: inputPath, sessionId = "default", query, regex = false, caseSensitive = false, contextLines = 1, maxMatches = 20 }) {
     const { absolute, relative } = this.resolvePath(inputPath)
+    await this.#assertContained(absolute)
     await this.#assertReadableSize(absolute)
     const content = await fs.readFile(absolute, "utf8")
     return searchAnchored({ path: relative, content, store: this.store, sessionId, query, regex, caseSensitive, contextLines, maxMatches })
@@ -45,6 +49,7 @@ export class WorkspaceTools {
 
   async skeleton({ path: inputPath, sessionId = "default", maxLines = 200 }) {
     const { absolute, relative } = this.resolvePath(inputPath)
+    await this.#assertContained(absolute)
     await this.#assertReadableSize(absolute)
     const content = await fs.readFile(absolute, "utf8")
     return fileSkeleton({ path: relative, content, store: this.store, sessionId, maxLines })
@@ -52,6 +57,7 @@ export class WorkspaceTools {
 
   async getFunction({ path: inputPath, sessionId = "default", name, contextLines = 0, maxLines = 400 }) {
     const { absolute, relative } = this.resolvePath(inputPath)
+    await this.#assertContained(absolute)
     await this.#assertReadableSize(absolute)
     const content = await fs.readFile(absolute, "utf8")
     return getFunction({ path: relative, content, store: this.store, sessionId, name, contextLines, maxLines })
@@ -59,6 +65,7 @@ export class WorkspaceTools {
 
   async symbolReplace({ path: inputPath, sessionId = "default", name, search, replacement = "", regex = false, replaceAll = false, caseSensitive = true, dryRun = false }) {
     const { absolute, relative } = this.resolvePath(inputPath)
+    await this.#assertContained(absolute)
     await this.#assertReadableSize(absolute)
     const before = await fs.readFile(absolute, "utf8")
     const result = symbolReplace({ path: relative, content: before, store: this.store, sessionId, name, search, replacement, regex, replaceAll, caseSensitive })
@@ -76,6 +83,7 @@ export class WorkspaceTools {
 
   async edit({ path: inputPath, sessionId = "default", edits, atomic = true, dryRun = false }) {
     const { absolute, relative } = this.resolvePath(inputPath)
+    await this.#assertContained(absolute)
     await this.#assertReadableSize(absolute)
     const before = await fs.readFile(absolute, "utf8")
     const result = applyAnchoredEdits({ path: relative, content: before, store: this.store, sessionId, edits, atomic })
@@ -105,6 +113,7 @@ export class WorkspaceTools {
     for (const file of files) {
       try {
         const { absolute, relative } = this.resolvePath(file.path)
+        await this.#assertContained(absolute)
         await this.#assertReadableSize(absolute)
         const before = await fs.readFile(absolute, "utf8")
         const result = applyAnchoredEdits({
@@ -145,6 +154,21 @@ export class WorkspaceTools {
     }
 
     return { ok: errors.length === 0, dryRun, errors, files: prepared.map((entry) => entry.item) }
+  }
+
+  async #assertContained(absolute) {
+    let real
+    try {
+      real = await fs.realpath(absolute)
+    } catch (e) {
+      if (e.code === "ENOENT") return
+      throw e
+    }
+    if (!this.#realCwd) this.#realCwd = await fs.realpath(this.cwd)
+    const rel = path.relative(this.#realCwd, real)
+    if (rel.startsWith("..") || path.isAbsolute(rel)) {
+      throw new Error(`path escapes workspace via symlink: ${absolute}`)
+    }
   }
 
   async #assertReadableSize(absolute) {

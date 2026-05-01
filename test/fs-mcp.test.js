@@ -38,6 +38,22 @@ test("WorkspaceTools rejects path traversal", async () => {
   await assert.rejects(() => tools.read({ path: "../nope" }), /escapes workspace/)
 })
 
+test("WorkspaceTools rejects symlink pointing outside workspace", async () => {
+  const cwd = await tempWorkspace()
+  const link = path.join(cwd, "escape.txt")
+  await fs.symlink("/etc/hosts", link)
+  const tools = new WorkspaceTools({ cwd })
+  await assert.rejects(() => tools.read({ path: "escape.txt" }), /escapes workspace via symlink/)
+})
+
+test("WorkspaceTools reads a regular file normally", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "plain.txt"), "hello", "utf8")
+  const tools = new WorkspaceTools({ cwd })
+  const result = await tools.read({ path: "plain.txt", sessionId: "t" })
+  assert.match(result.text, /§hello/)
+})
+
 test("CLI read emits anchored content", async () => {
   const cwd = await tempWorkspace()
   await fs.writeFile(path.join(cwd, "demo.txt"), "alpha\nbeta", "utf8")
@@ -144,6 +160,24 @@ test("WorkspaceTools dryRun validates without writing", async () => {
   assert.equal(result.ok, true)
   assert.equal(result.changed, true)
   assert.equal(await fs.readFile(path.join(cwd, "demo.txt"), "utf8"), "one\ntwo")
+})
+
+test("WorkspaceTools read respects startLine and endLine", async () => {
+  const cwd = await tempWorkspace()
+  const lines = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`).join("\n")
+  await fs.writeFile(path.join(cwd, "big.txt"), lines, "utf8")
+  const tools = new WorkspaceTools({ cwd })
+
+  const partial = await tools.read({ path: "big.txt", sessionId: "partial", startLine: 5, endLine: 8 })
+
+  assert.equal(partial.startLine, 5)
+  assert.equal(partial.endLine, 8)
+  assert.equal(partial.anchors.length, 4)
+  assert.match(partial.text, /line 5/)
+  assert.match(partial.text, /line 8/)
+  assert(!partial.text.includes("line 4"), "should not include line before startLine")
+  assert(!partial.text.includes("line 9"), "should not include line after endLine")
+  assert(partial.telemetry.estimatedTokensAvoided > 0, "partial read should avoid tokens")
 })
 
 test("MCP anchored_edit_many applies cross-file batch", async () => {

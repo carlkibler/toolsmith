@@ -14,7 +14,10 @@ export function symbolReplace({ path, content, store, sessionId, name, search, r
   }
 
   const beforeSymbol = lines.slice(range.startIndex, range.endIndex + 1).join("\n")
-  const { text: afterSymbol, matches } = replaceInText(beforeSymbol, { search, replacement, regex, replaceAll, caseSensitive })
+  const { text: afterSymbol, matches, regexError } = replaceInText(beforeSymbol, { search, replacement, regex, replaceAll, caseSensitive })
+  if (regexError) {
+    return { ok: false, path, content, errors: [regexError], symbolStartLine: range.startIndex + 1, symbolEndLine: range.endIndex + 1, matches: 0, changed: false, beforeHash: contentHash(content), afterHash: contentHash(content) }
+  }
   if (matches === 0) {
     return { ok: false, path, content, errors: [`search not found in symbol ${name}: ${search}`], symbolStartLine: range.startIndex + 1, symbolEndLine: range.endIndex + 1, matches: 0, changed: false, beforeHash: contentHash(content), afterHash: contentHash(content) }
   }
@@ -47,8 +50,14 @@ export function symbolReplace({ path, content, store, sessionId, name, search, r
 
 function replaceInText(text, { search, replacement, regex, replaceAll, caseSensitive }) {
   if (regex) {
-    const flags = `${replaceAll ? "g" : ""}${caseSensitive ? "" : "i"}`
-    const pattern = new RegExp(search, flags)
+    if (search.length > 1024) return { text, matches: 0, regexError: "regex pattern too long (max 1024 chars)" }
+    let pattern
+    try {
+      const flags = `${replaceAll ? "g" : ""}${caseSensitive ? "" : "i"}`
+      pattern = new RegExp(search, flags)
+    } catch (e) {
+      return { text, matches: 0, regexError: `invalid regex: ${e.message}` }
+    }
     let matches = 0
     const replaced = text.replace(pattern, (...args) => {
       matches += 1
