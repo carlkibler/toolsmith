@@ -22,7 +22,7 @@
   "homepage": "https://github.com/carlkibler/toolsmith#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/carlkibler/toolsmith.git"
+    "url": "git+https://github.com/carlkibler/toolsmith.git"
   },
   "bugs": {
     "url": "https://github.com/carlkibler/toolsmith/issues"
@@ -43,8 +43,8 @@
     "zod": "^3.25.76"
   },
   "bin": {
-    "toolsmith": "./bin/toolsmith.js",
-    "toolsmith-mcp": "./bin/toolsmith-mcp.js"
+    "toolsmith": "bin/toolsmith.js",
+    "toolsmith-mcp": "bin/toolsmith-mcp.js"
   },
   "pi": {
     "extensions": [
