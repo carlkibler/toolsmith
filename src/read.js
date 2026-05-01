@@ -1,10 +1,10 @@
 import { contentHash } from "./hash.js"
-import { formatAnchoredLine, splitLines } from "./anchors.js"
+import { AnchorStore, formatAnchoredLine, splitLines } from "./anchors.js"
 import { makeTelemetry } from "./telemetry.js"
 
 export function readAnchored({ path, content, store, sessionId, startLine, endLine }) {
-  if (!store) throw new Error("readAnchored requires an AnchorStore")
-  const anchors = store.reconcile(path, content, { sessionId })
+  const anchorStore = store || new AnchorStore()
+  const anchors = anchorStore.reconcile(path, content, { sessionId })
   const lines = splitLines(content)
   const start = Math.max(0, (startLine || 1) - 1)
   const end = Math.min(lines.length, endLine || lines.length)

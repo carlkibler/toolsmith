@@ -106,6 +106,28 @@ Registered tools:
 - `pi_anchored_edit_many`
 - `pi_anchored_status`
 
+## Configuration
+
+The MCP server uses the current working directory as the workspace root. Override with `TOOLSMITH_CWD`:
+
+```json
+{
+  "mcpServers": {
+    "toolsmith": {
+      "command": "npx",
+      "args": ["toolsmith-mcp"],
+      "env": { "TOOLSMITH_CWD": "/path/to/your/project" }
+    }
+  }
+}
+```
+
+## Anchor lifecycle
+
+Anchors are valid for the **file version at read time**. Call `anchored_read` or `anchored_search` to get anchors for the current version, then use them immediately in `anchored_edit`. If another process modifies the file between your read and edit, the edit will fail with a content mismatch error — re-read and retry.
+
+See [`AGENTS.md`](AGENTS.md) for a full guide on error recovery, `sessionId` isolation, and debugging anchor failures.
+
 ## Telemetry
 
 Tool results include a `telemetry` object with byte counts, rough token estimates, anchor counts, edit deltas, and estimated tokens avoided versus reading the full file. Token estimates intentionally use a simple local heuristic for portable trend tracking, not billing-grade accounting.
