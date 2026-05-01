@@ -22,6 +22,7 @@ export class WorkspaceTools {
 
   resolvePath(inputPath) {
     if (!inputPath || typeof inputPath !== "string") throw new Error("path is required")
+    if (inputPath.includes("\0")) throw new Error("path must not contain null bytes")
     const absolute = path.resolve(this.cwd, inputPath)
     const relative = path.relative(this.cwd, absolute)
     if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
@@ -90,6 +91,7 @@ export class WorkspaceTools {
     const changed = result.content !== before
 
     if (result.ok && changed && !dryRun) {
+      if (result.content.length > this.maxBytes) throw new Error(`edit result exceeds size limit (${result.content.length} bytes > ${this.maxBytes}); split into smaller edits`)
       await fs.writeFile(absolute, result.content, "utf8")
     }
 
@@ -158,7 +160,10 @@ export class WorkspaceTools {
     const writable = errors.length > 0 ? prepared.filter((entry) => entry.item.ok) : prepared
     if (!dryRun) {
       for (const entry of writable) {
-        if (entry.item.changed) await fs.writeFile(entry.absolute, entry.item.content, "utf8")
+        if (entry.item.changed) {
+          if (entry.item.content.length > this.maxBytes) throw new Error(`edit result for ${entry.item.path} exceeds size limit (${entry.item.content.length} bytes > ${this.maxBytes})`)
+          await fs.writeFile(entry.absolute, entry.item.content, "utf8")
+        }
       }
     }
 
@@ -176,13 +181,18 @@ export class WorkspaceTools {
     if (!this.#realCwd) this.#realCwd = await fs.realpath(this.cwd)
     const rel = path.relative(this.#realCwd, real)
     if (rel.startsWith("..") || path.isAbsolute(rel)) {
-      throw new Error(`path escapes workspace via symlink: ${absolute}`)
+      throw new Error(`path escapes workspace via symlink: ${path.relative(this.cwd, absolute)}`)
     }
   }
 
   async #assertReadableSize(absolute) {
-    const stats = await fs.stat(absolute)
-    if (!stats.isFile()) throw new Error(`not a file: ${absolute}`)
+    let stats
+    try {
+      stats = await fs.stat(absolute)
+    } catch (e) {
+      throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
+    }
+    if (!stats.isFile()) throw new Error(`not a file: ${path.relative(this.cwd, absolute)}`)
     if (stats.size > this.maxBytes) throw new Error(`file is too large (${stats.size} bytes > ${this.maxBytes}); use startLine/endLine for partial reads, or file_skeleton for structure`)
   }
 }
