@@ -1,5 +1,9 @@
 import fs from "node:fs/promises"
+import { constants as fsConstants } from "node:fs"
 import path from "node:path"
+
+// O_NOFOLLOW: fail if final path component is a symlink. Not available on Windows.
+const O_NOFOLLOW = fsConstants.O_NOFOLLOW || 0
 import { AnchorStore } from "./anchors.js"
 import { contentHash } from "./hash.js"
 import { readAnchored } from "./read.js"
@@ -34,8 +38,7 @@ export class WorkspaceTools {
   async read({ path: inputPath, sessionId = "default", startLine, endLine }) {
     const { absolute, relative } = this.resolvePath(inputPath)
     await this.#assertContained(absolute)
-    await this.#assertReadableSize(absolute)
-    const content = await fs.readFile(absolute, "utf8")
+    const content = await this.#openAndRead(absolute)
     return readAnchored({ path: relative, content, store: this.store, sessionId, startLine, endLine })
   }
 
@@ -43,36 +46,32 @@ export class WorkspaceTools {
   async search({ path: inputPath, sessionId = "default", query, regex = false, caseSensitive = false, contextLines = 1, maxMatches = 20 }) {
     const { absolute, relative } = this.resolvePath(inputPath)
     await this.#assertContained(absolute)
-    await this.#assertReadableSize(absolute)
-    const content = await fs.readFile(absolute, "utf8")
+    const content = await this.#openAndRead(absolute)
     return searchAnchored({ path: relative, content, store: this.store, sessionId, query, regex, caseSensitive, contextLines, maxMatches })
   }
 
   async skeleton({ path: inputPath, sessionId = "default", maxLines = 200 }) {
     const { absolute, relative } = this.resolvePath(inputPath)
     await this.#assertContained(absolute)
-    await this.#assertReadableSize(absolute)
-    const content = await fs.readFile(absolute, "utf8")
+    const content = await this.#openAndRead(absolute)
     return fileSkeleton({ path: relative, content, store: this.store, sessionId, maxLines })
   }
 
   async getFunction({ path: inputPath, sessionId = "default", name, contextLines = 0, maxLines = 400 }) {
     const { absolute, relative } = this.resolvePath(inputPath)
     await this.#assertContained(absolute)
-    await this.#assertReadableSize(absolute)
-    const content = await fs.readFile(absolute, "utf8")
+    const content = await this.#openAndRead(absolute)
     return getFunction({ path: relative, content, store: this.store, sessionId, name, contextLines, maxLines })
   }
 
   async symbolReplace({ path: inputPath, sessionId = "default", name, search, replacement = "", regex = false, replaceAll = false, caseSensitive = true, dryRun = false }) {
     const { absolute, relative } = this.resolvePath(inputPath)
     await this.#assertContained(absolute)
-    await this.#assertReadableSize(absolute)
-    const before = await fs.readFile(absolute, "utf8")
+    const before = await this.#openAndRead(absolute)
     const result = symbolReplace({ path: relative, content: before, store: this.store, sessionId, name, search, replacement, regex, replaceAll, caseSensitive })
 
     if (result.ok && result.changed && !dryRun) {
-      await fs.writeFile(absolute, result.content, "utf8")
+      await this.#openAndWrite(absolute, result.content)
     }
 
     return {
@@ -85,14 +84,12 @@ export class WorkspaceTools {
   async edit({ path: inputPath, sessionId = "default", edits, atomic = true, dryRun = false }) {
     const { absolute, relative } = this.resolvePath(inputPath)
     await this.#assertContained(absolute)
-    await this.#assertReadableSize(absolute)
-    const before = await fs.readFile(absolute, "utf8")
+    const before = await this.#openAndRead(absolute)
     const result = applyAnchoredEdits({ path: relative, content: before, store: this.store, sessionId, edits, atomic })
     const changed = result.content !== before
 
     if (result.ok && changed && !dryRun) {
-      if (result.content.length > this.maxBytes) throw new Error(`edit result exceeds size limit (${result.content.length} bytes > ${this.maxBytes}); split into smaller edits`)
-      await fs.writeFile(absolute, result.content, "utf8")
+      await this.#openAndWrite(absolute, result.content)
     }
 
     return {
@@ -116,8 +113,7 @@ export class WorkspaceTools {
       try {
         const { absolute, relative } = this.resolvePath(file.path)
         await this.#assertContained(absolute)
-        await this.#assertReadableSize(absolute)
-        const before = await fs.readFile(absolute, "utf8")
+        const before = await this.#openAndRead(absolute)
         return { file, absolute, relative, before }
       } catch (error) {
         return { file, error }
@@ -160,10 +156,7 @@ export class WorkspaceTools {
     const writable = errors.length > 0 ? prepared.filter((entry) => entry.item.ok) : prepared
     if (!dryRun) {
       for (const entry of writable) {
-        if (entry.item.changed) {
-          if (entry.item.content.length > this.maxBytes) throw new Error(`edit result for ${entry.item.path} exceeds size limit (${entry.item.content.length} bytes > ${this.maxBytes})`)
-          await fs.writeFile(entry.absolute, entry.item.content, "utf8")
-        }
+        if (entry.item.changed) await this.#openAndWrite(entry.absolute, entry.item.content)
       }
     }
 
@@ -185,14 +178,48 @@ export class WorkspaceTools {
     }
   }
 
-  async #assertReadableSize(absolute) {
-    let stats
+  async #openAndRead(absolute) {
+    let fd
     try {
-      stats = await fs.stat(absolute)
+      fd = await fs.open(absolute, fsConstants.O_RDONLY | O_NOFOLLOW)
     } catch (e) {
-      throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
+      if (e.code === "ELOOP" && O_NOFOLLOW !== 0) {
+        // File is a symlink already verified by assertContained — re-verify and open normally
+        await this.#assertContained(absolute)
+        fd = await fs.open(absolute, fsConstants.O_RDONLY)
+      } else {
+        throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
+      }
     }
-    if (!stats.isFile()) throw new Error(`not a file: ${path.relative(this.cwd, absolute)}`)
-    if (stats.size > this.maxBytes) throw new Error(`file is too large (${stats.size} bytes > ${this.maxBytes}); use startLine/endLine for partial reads, or file_skeleton for structure`)
+    try {
+      const stats = await fd.stat()
+      if (!stats.isFile()) throw new Error(`not a file: ${path.relative(this.cwd, absolute)}`)
+      if (stats.size > this.maxBytes) throw new Error(`file is too large (${stats.size} bytes > ${this.maxBytes}); use startLine/endLine for partial reads, or file_skeleton for structure`)
+      return await fd.readFile("utf8")
+    } finally {
+      await fd.close()
+    }
+  }
+
+  async #openAndWrite(absolute, content) {
+    if (content.length > this.maxBytes) throw new Error(`edit result exceeds size limit (${content.length} bytes > ${this.maxBytes}); split into smaller edits`)
+    const writeFlags = fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_TRUNC | O_NOFOLLOW
+    let fd
+    try {
+      fd = await fs.open(absolute, writeFlags)
+    } catch (e) {
+      if (e.code === "ELOOP" && O_NOFOLLOW !== 0) {
+        // Symlink target already verified by assertContained — re-verify and write normally
+        await this.#assertContained(absolute)
+        fd = await fs.open(absolute, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_TRUNC)
+      } else {
+        throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
+      }
+    }
+    try {
+      await fd.writeFile(content, "utf8")
+    } finally {
+      await fd.close()
+    }
   }
 }
