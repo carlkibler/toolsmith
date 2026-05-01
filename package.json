@@ -1,6 +1,6 @@
 {
   "name": "@carlkibler/toolsmith",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Portable hash-anchored edit primitives for coding agent harnesses — low-token file reads and exact batched edits.",
   "type": "module",
   "main": "./src/index.js",
