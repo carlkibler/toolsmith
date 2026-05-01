@@ -48,3 +48,38 @@ bd close <id>         # Complete work
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
 <!-- END BEADS INTEGRATION -->
+
+---
+
+## Using toolsmith MCP tools (for AI agents consuming this library)
+
+### Anchor lifecycle
+
+Anchors are **valid for the file version at read time**. Every line gets a stable opaque anchor (e.g. `Aabc123§const x = 1`) when you call `anchored_read` or `anchored_search`. That anchor is a contract: "this is that exact line in this version of the file."
+
+**Anchors become stale when** another tool writes to the file, the user edits it in their editor, or you apply an edit. Unchanged lines keep their anchors after an edit; changed lines get new ones.
+
+**Correct workflow:**
+1. Call `anchored_read` (or `anchored_search`) to get anchors for the current version
+2. Apply `anchored_edit` using those anchors
+3. If you get a content mismatch or "not found" error — re-read the file and retry
+
+### sessionId isolation
+
+Use a consistent `sessionId` throughout a task. Anchors from session `"s1"` are invisible to session `"s2"`. Default is `"default"`.
+
+### Recovering from errors
+
+| Error | Cause | Fix |
+|---|---|---|
+| `no anchors registered…; call anchored_read first` | File never read in this session | Call `anchored_read` first |
+| `not found in N current anchors; re-read the file if it has changed` | Stale anchor — file changed since read | Re-read and retry |
+| `content mismatch; expected full reference Axyz§...` | Line content changed or wrong text | Copy the full `Anchor§line` reference exactly from the read output |
+
+### Debugging anchor failures
+
+Call `anchored_edit_status` to see which files and sessions have active anchors. If your file isn't listed, call `anchored_read` first.
+
+### Large files
+
+Files over 512KB are rejected. Use `startLine`/`endLine` for partial reads, `file_skeleton` for structure, or `get_function` for a single symbol.

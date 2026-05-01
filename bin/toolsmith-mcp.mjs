@@ -98,7 +98,7 @@ server.registerTool(
   },
   async (args) => {
     const result = await workspace.getFunction(args)
-    return { content: [{ type: "text", text: result.text }], structuredContent: result, isError: result.found === false }
+    return { content: [{ type: "text", text: result.text }], structuredContent: result, isError: false }
   },
 )
 
@@ -145,7 +145,7 @@ server.registerTool(
   async (args) => {
     const result = await workspace.edit(args)
     const summary = result.ok
-      ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}. ${result.beforeHash} -> ${result.afterHash}`
+      ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}${result.changed ? "" : " (no content change)"}. ${result.beforeHash} -> ${result.afterHash}`
       : `Anchored edit failed for ${result.path}:\n${result.errors.join("\n")}`
     return {
       content: [{ type: "text", text: summary }],
@@ -190,14 +190,20 @@ server.registerTool(
   "anchored_edit_status",
   {
     title: "Anchored Edit Status",
-    description: "Report server workspace and tool status.",
+    description: "Report server workspace, tool status, and current anchor store contents. Use this to debug anchor failures — it shows which files and sessions have active anchors.",
     inputSchema: {},
     annotations: { readOnlyHint: true },
   },
-  async () => ({
-    content: [{ type: "text", text: `toolsmith MCP ready in ${workspace.cwd}` }],
-    structuredContent: { cwd: workspace.cwd, version: "0.1.0" },
-  }),
+  async () => {
+    const files = workspace.store.summary()
+    const storeText = files.length === 0
+      ? "(no files in anchor store)"
+      : `${files.length} file(s) in anchor store:\n${files.map((f) => `  ${f.path} [session: ${f.sessionId}, lines: ${f.lineCount}]`).join("\n")}`
+    return {
+      content: [{ type: "text", text: `toolsmith MCP ready in ${workspace.cwd}\n${storeText}` }],
+      structuredContent: { cwd: workspace.cwd, version: "0.1.0", files },
+    }
+  },
 )
 
 const transport = new StdioServerTransport()

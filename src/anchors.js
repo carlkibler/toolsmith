@@ -91,6 +91,11 @@ function reconcileGreedy(previousHashes, previousAnchors, currentHashes, path, u
 
 export class AnchorStore {
   #documents = new Map()
+  #maxDocuments
+
+  constructor({ maxDocuments = 200 } = {}) {
+    this.#maxDocuments = maxDocuments
+  }
 
   reconcile(path, content, options = {}) {
     const sessionId = options.sessionId || "default"
@@ -98,6 +103,8 @@ export class AnchorStore {
     const lines = splitLines(content)
     const hashes = lineHashes(lines)
     const previous = this.#documents.get(key)
+    // Seed used-set from live anchors only — historical anchors from deleted lines
+    // are not tracked; uniqueAnchor's attempt counter handles any rare re-collision.
     const used = new Set(previous?.usedAnchors || [])
 
     let anchors
@@ -107,12 +114,20 @@ export class AnchorStore {
     } else if (sameHashes(previous.hashes, hashes)) {
       anchors = [...previous.anchors]
     } else if (previous.hashes.length * hashes.length <= MAX_LCS_CELLS) {
+      // O(N²) LCS for files small enough to fit in MAX_LCS_CELLS; greedy O(N) below
       anchors = reconcileWithLcs(previous.hashes, previous.anchors, hashes, path, used)
     } else {
       anchors = reconcileGreedy(previous.hashes, previous.anchors, hashes, path, used)
     }
 
-    this.#documents.set(key, { hashes, anchors, usedAnchors: new Set([...used, ...anchors]) })
+    // LRU eviction: delete-then-set moves the entry to the end (most-recently-used).
+    // The first Map entry is always the least-recently-used candidate for eviction.
+    this.#documents.delete(key)
+    this.#documents.set(key, { hashes, anchors, usedAnchors: new Set(anchors) })
+    if (this.#documents.size > this.#maxDocuments) {
+      this.#documents.delete(this.#documents.keys().next().value)
+    }
+
     return anchors
   }
 
@@ -128,6 +143,15 @@ export class AnchorStore {
     } else {
       this.#documents.clear()
     }
+  }
+
+  summary() {
+    const files = []
+    for (const [key, doc] of this.#documents) {
+      const sep = key.indexOf("\0")
+      files.push({ path: key.slice(sep + 1), sessionId: key.slice(0, sep), lineCount: doc.anchors.length })
+    }
+    return files
   }
 }
 

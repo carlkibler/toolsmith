@@ -110,36 +110,45 @@ export class WorkspaceTools {
     const prepared = []
     const errors = []
 
-    for (const file of files) {
+    const reads = await Promise.all(files.map(async (file) => {
       try {
         const { absolute, relative } = this.resolvePath(file.path)
         await this.#assertContained(absolute)
         await this.#assertReadableSize(absolute)
         const before = await fs.readFile(absolute, "utf8")
-        const result = applyAnchoredEdits({
-          path: relative,
-          content: before,
-          store: this.store,
-          sessionId: file.sessionId || sessionId,
-          edits: file.edits,
-          atomic,
-        })
-        const changed = result.content !== before
-        const item = {
-          ...result,
-          path: relative,
-          dryRun,
-          changed,
-          beforeHash: contentHash(before),
-          afterHash: contentHash(result.content),
-          telemetry: makeTelemetry({ operation: "anchored_edit_many:file", fullContent: before, requestPayload: { path: relative, sessionId: file.sessionId || sessionId, edits: file.edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
-        }
-        prepared.push({ absolute, item })
-        if (!result.ok) errors.push(...result.errors.map((error) => `${relative}: ${error}`))
+        return { file, absolute, relative, before }
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        errors.push(`${file?.path || "<unknown>"}: ${message}`)
+        return { file, error }
       }
+    }))
+
+    for (const entry of reads) {
+      if (entry.error) {
+        const message = entry.error instanceof Error ? entry.error.message : String(entry.error)
+        errors.push(`${entry.file?.path || "<unknown>"}: ${message}`)
+        continue
+      }
+      const { file, absolute, relative, before } = entry
+      const result = applyAnchoredEdits({
+        path: relative,
+        content: before,
+        store: this.store,
+        sessionId: file.sessionId || sessionId,
+        edits: file.edits,
+        atomic,
+      })
+      const changed = result.content !== before
+      const item = {
+        ...result,
+        path: relative,
+        dryRun,
+        changed,
+        beforeHash: contentHash(before),
+        afterHash: contentHash(result.content),
+        telemetry: makeTelemetry({ operation: "anchored_edit_many:file", fullContent: before, requestPayload: { path: relative, sessionId: file.sessionId || sessionId, edits: file.edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
+      }
+      prepared.push({ absolute, item })
+      if (!result.ok) errors.push(...result.errors.map((error) => `${relative}: ${error}`))
     }
 
     if (errors.length > 0 && atomic) {
@@ -174,6 +183,6 @@ export class WorkspaceTools {
   async #assertReadableSize(absolute) {
     const stats = await fs.stat(absolute)
     if (!stats.isFile()) throw new Error(`not a file: ${absolute}`)
-    if (stats.size > this.maxBytes) throw new Error(`file is too large (${stats.size} bytes > ${this.maxBytes})`)
+    if (stats.size > this.maxBytes) throw new Error(`file is too large (${stats.size} bytes > ${this.maxBytes}); use startLine/endLine for partial reads, or file_skeleton for structure`)
   }
 }

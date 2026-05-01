@@ -8,7 +8,13 @@ export function searchAnchored({ path, content, store, sessionId, query, regex =
 
   const lines = splitLines(content)
   const anchors = store.reconcile(path, content, { sessionId })
-  const matcher = makeMatcher(query, { regex, caseSensitive })
+  let matcher
+  try {
+    matcher = makeMatcher(query, { regex, caseSensitive })
+  } catch (e) {
+    const text = `[File: ${path}] [Error: ${e.message}]`
+    return { path, fileHash: contentHash(content), query, regex, caseSensitive, contextLines, maxMatches, matches: [], text, error: e.message, telemetry: makeTelemetry({ operation: "anchored_search", fullContent: content, requestPayload: { path, sessionId, query, regex, caseSensitive, contextLines, maxMatches }, responseText: text, anchors: [] }) }
+  }
   const matches = []
 
   for (let index = 0; index < lines.length && matches.length < maxMatches; index += 1) {
@@ -31,8 +37,13 @@ export function searchAnchored({ path, content, store, sessionId, query, regex =
 
 function makeMatcher(query, { regex, caseSensitive }) {
   if (regex) {
-    const pattern = new RegExp(query, caseSensitive ? "" : "i")
-    return (line) => pattern.test(line)
+    if (query.length > 1024) throw new Error("regex pattern too long (max 1024 chars)")
+    try {
+      const pattern = new RegExp(query, caseSensitive ? "" : "i")
+      return (line) => pattern.test(line)
+    } catch (e) {
+      throw new Error(`invalid regex: ${e.message}`)
+    }
   }
   const needle = caseSensitive ? query : query.toLowerCase()
   return (line) => (caseSensitive ? line : line.toLowerCase()).includes(needle)

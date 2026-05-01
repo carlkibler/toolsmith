@@ -65,14 +65,14 @@ function resolveEdit(edit, editIndex, lines, anchors) {
   const replacementLines = replacementText.length === 0 ? [] : replacementText.split(/\r?\n/)
 
   if (type === "insert_after") {
-    return ok({ type, anchor: start.anchor, endAnchor: start.anchor, rangeStart: start.index + 1, rangeEnd: start.index + 1, spliceIndex: start.index + 1, deleteCount: 0, replacementLines })
+    return ok({ type, anchor: start.anchor, endAnchor: start.anchor, editIndex, rangeStart: start.index + 1, rangeEnd: start.index + 1, spliceIndex: start.index + 1, deleteCount: 0, replacementLines })
   }
 
   if (type === "insert_before") {
-    return ok({ type, anchor: start.anchor, endAnchor: start.anchor, rangeStart: start.index, rangeEnd: start.index, spliceIndex: start.index, deleteCount: 0, replacementLines })
+    return ok({ type, anchor: start.anchor, endAnchor: start.anchor, editIndex, rangeStart: start.index, rangeEnd: start.index, spliceIndex: start.index, deleteCount: 0, replacementLines })
   }
 
-  return ok({ type, anchor: start.anchor, endAnchor: end.anchor, rangeStart: start.index, rangeEnd: end.index + 1, spliceIndex: start.index, deleteCount: end.index - start.index + 1, replacementLines })
+  return ok({ type, anchor: start.anchor, endAnchor: end.anchor, editIndex, rangeStart: start.index, rangeEnd: end.index + 1, spliceIndex: start.index, deleteCount: end.index - start.index + 1, replacementLines })
 }
 
 function resolveAnchor(field, reference, lines, anchors, editIndex) {
@@ -81,7 +81,12 @@ function resolveAnchor(field, reference, lines, anchors, editIndex) {
   if (!VALID_ANCHOR.test(anchor)) return { error: `${field} "${anchor}" is malformed; expected A...${ANCHOR_DELIMITER}line` }
 
   const index = anchors.indexOf(anchor)
-  if (index === -1) return { error: `${field} "${anchor}" not found in current anchors` }
+  if (index === -1) {
+    const hint = anchors.length === 0
+      ? `no anchors registered for this path/session; call anchored_read first`
+      : `not found in ${anchors.length} current anchors; re-read the file if it has changed`
+    return { error: `${field} "${anchor}" ${hint}` }
+  }
   if (content === null) return { error: `${field} "${anchor}" must include exact line content after ${ANCHOR_DELIMITER}; use ${JSON.stringify(formatAnchoredLine(anchor, lines[index]))}` }
   if (content.includes("\n") || content.includes("\r")) return { error: `${field} "${anchor}" must reference exactly one line` }
   if (lines[index] !== content) return { error: `${field} "${anchor}" content mismatch; expected full reference ${JSON.stringify(formatAnchoredLine(anchor, lines[index]))}, got line content ${JSON.stringify(content)}` }
@@ -93,7 +98,9 @@ function findOverlap(resolved) {
   const sorted = [...resolved].sort((left, right) => left.rangeStart - right.rangeStart || left.rangeEnd - right.rangeEnd)
   for (let index = 1; index < sorted.length; index += 1) {
     if (sorted[index].rangeStart < sorted[index - 1].rangeEnd) {
-      return `edits overlap around anchor ${sorted[index].anchor}`
+      const a = sorted[index - 1]
+      const b = sorted[index]
+      return `edits overlap: edit[${a.editIndex}] (${a.anchor}) and edit[${b.editIndex}] (${b.anchor}) share a line range`
     }
   }
   return null
