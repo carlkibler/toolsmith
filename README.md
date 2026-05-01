@@ -1,21 +1,21 @@
 # toolsmith
 
-Portable coding-agent efficiency tools, starting with hash-anchored edit primitives inspired by Dirac's low-token editing workflow.
+Hash-anchored file edit primitives for coding agents — low-token reads and exact batched edits.
 
-The first goal is a small, dependency-light core that other harnesses can wrap:
+Reads return stable opaque line anchors; edits validate anchor + line content before mutating. Multiple independent edits apply atomically. Works as an MCP server (Claude Code, Codex), a Pi.dev extension, or a plain Node.js library.
 
-- read files with opaque stable line anchors
-- apply exact, anchor-targeted edits
-- batch independent edits atomically
-- preserve anchors across unchanged lines after edits
-- report lightweight telemetry for bytes/tokens avoided and edit payload size
+## Installation
 
-Future wrappers can expose this through Pi.dev extensions, MCP servers for Claude/Codex, or other agent harnesses.
+```bash
+npm install @carlkibler/toolsmith
+# or globally for the CLI and MCP server:
+npm install -g @carlkibler/toolsmith
+```
 
 ## Example
 
 ```js
-import { AnchorStore, readAnchored, applyAnchoredEdits } from "toolsmith"
+import { AnchorStore, readAnchored, applyAnchoredEdits } from "@carlkibler/toolsmith"
 
 const store = new AnchorStore()
 const read = readAnchored({ path: "src/app.js", content, store, sessionId: "task-1" })
@@ -48,18 +48,18 @@ See [`docs/PORTING.md`](docs/PORTING.md). Current status is in [`docs/STATUS.md`
 
 ```bash
 # Read with anchors
-npx toolsmith read src/app.js
+toolsmith read src/app.js
 
 # Search with compact anchored snippets
-npx toolsmith search src/app.js oldName --context 2
+toolsmith search src/app.js oldName --context 2
 
 # Read structure without full file content
-npx toolsmith skeleton src/app.js
-npx toolsmith get-function src/app.js oldName --context 2
-npx toolsmith symbol-replace src/app.js oldName --search old --replacement new
+toolsmith skeleton src/app.js
+toolsmith get-function src/app.js oldName --context 2
+toolsmith symbol-replace src/app.js oldName --search old --replacement new
 
 # Apply edits from JSON
-npx toolsmith edit src/app.js --edits edits.json --dry-run
+toolsmith edit src/app.js --edits edits.json --dry-run
 ```
 
 ## MCP
@@ -67,9 +67,10 @@ npx toolsmith edit src/app.js --edits edits.json --dry-run
 Run the stdio MCP server from a workspace root:
 
 ```bash
-npx toolsmith-mcp
-# or
-npx toolsmith mcp
+# after global install:
+toolsmith-mcp
+# or without installing globally:
+npx -y --package=@carlkibler/toolsmith toolsmith-mcp
 ```
 
 Tools:
@@ -115,7 +116,7 @@ The MCP server uses the current working directory as the workspace root. Overrid
   "mcpServers": {
     "toolsmith": {
       "command": "npx",
-      "args": ["toolsmith-mcp"],
+      "args": ["-y", "--package=@carlkibler/toolsmith", "toolsmith-mcp"],
       "env": { "TOOLSMITH_CWD": "/path/to/your/project" }
     }
   }
