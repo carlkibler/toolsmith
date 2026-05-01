@@ -7,13 +7,15 @@ import { WorkspaceTools } from "../src/fs-tools.js"
 const workspace = new WorkspaceTools({ cwd: process.env.TOOLSMITH_CWD || process.cwd() })
 const server = new McpServer({ name: "toolsmith", version: "0.1.0" })
 
+const MAX_TEXT_BYTES = 512 * 1024
+
 const editSchema = z.object({
   type: z.enum(["replace", "insert_after", "insert_before"]).optional(),
   edit_type: z.enum(["replace", "insert_after", "insert_before"]).optional(),
   anchor: z.string().describe("Required full Anchor§line reference copied exactly from anchored_read or anchored_search, for example Aabc123§const x = 1."),
   endAnchor: z.string().optional().describe("Required for replace. Full Anchor§line reference for the final replaced line; for one-line replace, repeat anchor exactly."),
   end_anchor: z.string().optional().describe("Snake-case alias for endAnchor. Required for replace if endAnchor is omitted."),
-  text: z.string().default("").describe("Replacement or inserted text without Anchor§ prefixes. Anchors are stripped if accidentally included."),
+  text: z.string().max(MAX_TEXT_BYTES).default("").describe("Replacement or inserted text without Anchor§ prefixes. Anchors are stripped if accidentally included."),
 })
 
 server.registerTool(
@@ -23,7 +25,7 @@ server.registerTool(
     description: "Read a workspace file with stable opaque line anchors for later anchored_edit calls. Copy the complete Anchor§line reference exactly, including the § delimiter and line text.",
     inputSchema: {
       path: z.string().describe("Workspace-relative file path."),
-      sessionId: z.string().optional().describe("Optional anchor session id; use the same id for subsequent edits."),
+      sessionId: z.string().max(256).optional().describe("Optional anchor session id; use the same id for subsequent edits."),
       startLine: z.number().int().positive().optional(),
       endLine: z.number().int().positive().optional(),
     },
@@ -46,7 +48,7 @@ server.registerTool(
     inputSchema: {
       path: z.string().describe("Workspace-relative file path to search."),
       query: z.string().describe("Literal search text by default, or a JavaScript regex pattern when regex is true."),
-      sessionId: z.string().optional().describe("Optional anchor session id; use the same id for subsequent edits."),
+      sessionId: z.string().max(256).optional().describe("Optional anchor session id; use the same id for subsequent edits."),
       regex: z.boolean().optional().describe("Treat query as a JavaScript regular expression. Default false."),
       caseSensitive: z.boolean().optional().describe("Case-sensitive matching. Default false."),
       contextLines: z.number().int().min(0).max(20).optional().describe("Context lines before and after each match. Default 1."),
@@ -71,7 +73,7 @@ server.registerTool(
     description: "Return a compact anchored outline of imports, classes, functions, and top-level declarations. Use before anchored_read when you need file structure without full file content.",
     inputSchema: {
       path: z.string().describe("Workspace-relative file path."),
-      sessionId: z.string().optional().describe("Optional anchor session id; use the same id for subsequent get_function or edits."),
+      sessionId: z.string().max(256).optional().describe("Optional anchor session id; use the same id for subsequent get_function or edits."),
       maxLines: z.number().int().positive().max(1000).optional().describe("Maximum skeleton entries to return. Default 200."),
     },
     annotations: { readOnlyHint: true },
@@ -90,7 +92,7 @@ server.registerTool(
     inputSchema: {
       path: z.string().describe("Workspace-relative file path."),
       name: z.string().describe("Symbol name to extract."),
-      sessionId: z.string().optional().describe("Optional anchor session id; use the same id for subsequent edits."),
+      sessionId: z.string().max(256).optional().describe("Optional anchor session id; use the same id for subsequent edits."),
       contextLines: z.number().int().min(0).max(50).optional().describe("Context lines before and after the symbol. Default 0."),
       maxLines: z.number().int().positive().max(2000).optional().describe("Maximum anchored lines to return. Default 400."),
     },
@@ -113,7 +115,7 @@ server.registerTool(
       name: z.string().describe("Symbol name whose body/range should be edited."),
       search: z.string().describe("Literal text to replace by default, or JavaScript regex pattern when regex is true."),
       replacement: z.string().default("").describe("Replacement text."),
-      sessionId: z.string().optional().describe("Optional anchor session id."),
+      sessionId: z.string().max(256).optional().describe("Optional anchor session id."),
       regex: z.boolean().optional().describe("Treat search as a JavaScript regex. Default false."),
       replaceAll: z.boolean().optional().describe("Replace every match inside the symbol. Default false."),
       caseSensitive: z.boolean().optional().describe("Case-sensitive matching. Default true."),
@@ -136,8 +138,8 @@ server.registerTool(
     description: "Apply exact anchor-targeted file edits atomically. First call anchored_read or anchored_search. For every edit, anchor must be the complete Anchor§line string. For replace, endAnchor is required; repeat anchor for a one-line replace. If this fails, retry with the exact expected Anchor§line shown in the error.",
     inputSchema: {
       path: z.string().describe("Workspace-relative file path."),
-      sessionId: z.string().optional().describe("Anchor session id used for anchored_read."),
-      edits: z.array(editSchema).min(1),
+      sessionId: z.string().max(256).optional().describe("Anchor session id used for anchored_read."),
+      edits: z.array(editSchema).min(1).max(100),
       atomic: z.boolean().optional().describe("Abort entire batch if any edit fails. Default true."),
       dryRun: z.boolean().optional().describe("Validate and preview without writing. Default false."),
     },
@@ -162,12 +164,12 @@ server.registerTool(
     title: "Anchored Edit Many",
     description: "Apply exact anchor-targeted edits across multiple files. Validates every file before writing any file when atomic is true.",
     inputSchema: {
-      sessionId: z.string().optional().describe("Default anchor session id used for files without their own sessionId."),
+      sessionId: z.string().max(256).optional().describe("Default anchor session id used for files without their own sessionId."),
       files: z.array(z.object({
         path: z.string(),
-        sessionId: z.string().optional(),
-        edits: z.array(editSchema).min(1),
-      })).min(1),
+        sessionId: z.string().max(256).optional(),
+        edits: z.array(editSchema).min(1).max(100),
+      })).min(1).max(50),
       atomic: z.boolean().optional().describe("Abort entire multi-file batch if any edit fails. Default true."),
       dryRun: z.boolean().optional().describe("Validate and preview without writing. Default false."),
     },
