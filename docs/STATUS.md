@@ -1,6 +1,6 @@
 # Project Status
 
-Updated: 2026-04-29 (post multi-language expansion)
+Updated: 2026-05-01 (post security hardening and launch prep)
 
 ## What exists now
 
@@ -21,8 +21,9 @@ Implemented pieces:
   - atomic multi-file edit orchestration in filesystem wrapper
   - unchanged-line anchor preservation across nearby edits
 - CLI in `bin/toolsmith.mjs`
-  - `read`
-  - `edit`
+  - `read`, `search`, `skeleton`, `get-function`, `symbol-replace`, `edit`, `edit-many`
+  - `setup` — registers MCP with Claude Code and Codex using machine-local node path
+  - `doctor` — verifies Node ≥20, MCP binary, Claude Code and Codex registration
   - `mcp`
 - MCP server in `bin/toolsmith-mcp.mjs`
   - `anchored_read`
@@ -50,7 +51,7 @@ Implemented pieces:
 
 Local automated checks:
 
-- `npm run check` passes: 38 tests
+- `npm run check` passes: 44 tests
 - `npm pack --dry-run` succeeds and includes `bin/`, `docs/`, `extensions/`, `scripts/`, and `src/`
 - `npm run test:harnesses -- --skip-local` succeeds
 
@@ -70,6 +71,10 @@ Integration coverage in tests:
 - partial read (startLine/endLine) correctness and token savings
 - telemetry math: tokens avoided on partial reads, searches, and skeleton vs full file
 - session store isolation: edits in one session do not affect another session's anchor tracking
+- ReDoS protection: catastrophically backtracking regex patterns rejected via vm timeout check
+- symlink TOCTOU mitigation: O_NOFOLLOW on all file opens, ELOOP fallback for workspace symlinks
+- null byte rejection in path inputs
+- write size enforcement at both schema validation and file write layers
 
 Live harness checks performed:
 
@@ -89,15 +94,12 @@ Artifact logs from the latest validation runs live under `~/dev/agent-notes/tool
 
 ## Current commits
 
-- `e975fc0` Initial toolsmith scaffold
-- `2ffab45` Add MCP CLI and Pi adapters
-- `e6fc3d6` Add multi-file anchored edit validation
-- `2dcd129` Add reusable harness validation scripts
-- `af3096c` Add project status notes
-- `0c47cd3` Add anchored search and clearer edit guidance
-- `c66dc00` Add structural read tools
-- `9b31fdd` Add token savings telemetry
-- `071ee5e` Add symbol-scoped replace tool
+- `9b2987c` Add toolsmith setup and doctor commands
+- `1cf01dc` Security: O_NOFOLLOW on all file opens (TOCTOU mitigation)
+- `7ec263d` Security: ReDoS protection via vm.runInNewContext timeout check
+- `f1933b1` Launch prep: scope package name, fix deps, add CI, CHANGELOG
+- `11419eb` Security hardening: write limits, null byte rejection, error message sanitization
+- `6216601` Apply all 15 empathy audit improvements
 
 ## Language coverage
 
@@ -117,8 +119,8 @@ End-detection uses brace-counting for brace languages (JS/TS/Rust/Go/Swift/C-fam
 
 ## Next good steps
 
-1. Add a CLI/report mode to compare tool-call payloads on larger real files (demonstrates savings concretely).
-2. Add a real Pi.dev live harness once Pi CLI/extension invocation is confirmed.
-3. Compare `symbol_replace` vs `anchored_edit` on larger real files for guidance to agents.
-4. Decide which tokenlean/cozempic pieces belong here, keeping `src/` harness-neutral.
-5. Explore convenience wrappers for Claude/Codex that preserve safety while avoiding interactive MCP approval failure in background regression runs.
+1. Publish `@carlkibler/toolsmith@0.1.0` to npm.
+2. Add a CLI/report mode to compare tool-call payloads on larger real files (demonstrates savings concretely).
+3. Add a real Pi.dev live harness once Pi CLI/extension invocation is confirmed.
+4. Compare `symbol_replace` vs `anchored_edit` on larger real files for guidance to agents.
+5. Decide which tokenlean/cozempic pieces belong here, keeping `src/` harness-neutral.
