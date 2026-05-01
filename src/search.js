@@ -60,7 +60,10 @@ function countMatches(lines, matcher) {
 }
 
 function formatSearchText({ path, content, matches, truncated }) {
-  const header = `[File: ${path}] [File Hash: ${contentHash(content)}] [Matches: ${matches.length}${truncated ? "+" : ""}]`
+  const totalLines = splitLines(content).length
+  const matchedLines = new Set(matches.flatMap((m) => Array.from({ length: m.endLine - m.startLine + 1 }, (_, i) => m.startLine + i))).size
+  const savedPct = totalLines > 0 ? Math.round((1 - matchedLines / totalLines) * 100) : 0
+  const header = `[File: ${path}] [File Hash: ${contentHash(content)}] [Matches: ${matches.length}${truncated ? "+" : ""}] [~${savedPct}% of file not transferred]`
   if (matches.length === 0) return `${header}\n(no matches)`
   return `${header}\n${matches.map((match) => `--- match line ${match.line} ---\n${match.snippet}`).join("\n")}`
 }

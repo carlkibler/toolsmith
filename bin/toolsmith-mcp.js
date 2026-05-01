@@ -22,12 +22,12 @@ server.registerTool(
   "anchored_read",
   {
     title: "Anchored Read",
-    description: "Read a workspace file with stable opaque line anchors for later anchored_edit calls. Copy the complete Anchor§line reference exactly, including the § delimiter and line text.",
+    description: "Use when editing or reading files >200 lines. Returns stable line anchors (Anchor§line) for anchored_edit — avoids re-reading on every change. Use startLine/endLine for partial reads on large files. Copy Anchor§line references exactly.",
     inputSchema: {
       path: z.string().describe("Workspace-relative file path."),
-      sessionId: z.string().max(256).optional().describe("Optional anchor session id; use the same id for subsequent edits."),
-      startLine: z.number().int().positive().optional(),
-      endLine: z.number().int().positive().optional(),
+      sessionId: z.string().max(256).optional().describe("Anchor session id — use the same value for all reads and edits in a task. Recommended: your task name or a short identifier. Default: 'default'."),
+      startLine: z.number().int().positive().optional().describe("First line to return (1-based). Omit to read from the beginning."),
+      endLine: z.number().int().positive().optional().describe("Last line to return (1-based, inclusive). Omit to read to end of file."),
     },
     annotations: { readOnlyHint: true },
   },
@@ -44,7 +44,7 @@ server.registerTool(
   "anchored_search",
   {
     title: "Anchored Search",
-    description: "Search one workspace file and return compact anchored snippets. Use this before anchored_edit when you only need matching lines instead of a full anchored_read.",
+    description: "Use instead of grep when you'll edit results — returns anchored snippets ready for anchored_edit without a separate read.",
     inputSchema: {
       path: z.string().describe("Workspace-relative file path to search."),
       query: z.string().describe("Literal search text by default, or a JavaScript regex pattern when regex is true."),
@@ -70,7 +70,7 @@ server.registerTool(
   "file_skeleton",
   {
     title: "File Skeleton",
-    description: "Return a compact anchored outline of imports, classes, functions, and top-level declarations. Use before anchored_read when you need file structure without full file content.",
+    description: "Use to explore unfamiliar files without reading them — returns an anchored outline of declarations at low token cost. Orient here, then get_function or anchored_read for details.",
     inputSchema: {
       path: z.string().describe("Workspace-relative file path."),
       sessionId: z.string().max(256).optional().describe("Optional anchor session id; use the same id for subsequent get_function or edits."),
@@ -88,7 +88,7 @@ server.registerTool(
   "get_function",
   {
     title: "Get Function",
-    description: "Return the anchored source range for a named function, class, type, or top-level declaration. Use this before anchored_edit when changing one symbol.",
+    description: "Use when changing a known symbol — returns only that symbol's anchored source, not the whole file. Pass anchors directly to anchored_edit.",
     inputSchema: {
       path: z.string().describe("Workspace-relative file path."),
       name: z.string().describe("Symbol name to extract."),
@@ -109,7 +109,7 @@ server.registerTool(
   "symbol_replace",
   {
     title: "Symbol Replace",
-    description: "Safely replace text only inside one named function/class/type/top-level declaration. Use for small symbol-scoped changes when full anchored_edit is unnecessary.",
+    description: "Default for single-symbol edits — change code inside a named function, class, or method with no pre-read required. Use anchored_edit for multi-symbol or multi-line changes.",
     inputSchema: {
       path: z.string().describe("Workspace-relative file path."),
       name: z.string().describe("Symbol name whose body/range should be edited."),
@@ -135,7 +135,7 @@ server.registerTool(
   "anchored_edit",
   {
     title: "Anchored Edit",
-    description: "Apply exact anchor-targeted file edits atomically. First call anchored_read or anchored_search. For every edit, anchor must be the complete Anchor§line string. For replace, endAnchor is required; repeat anchor for a one-line replace. If this fails, retry with the exact expected Anchor§line shown in the error.",
+    description: "Lowest-token edit path for files >200 lines. Prereq: call anchored_read, anchored_search, or get_function first. anchor must be the full Anchor§line string; endAnchor required for replace (repeat anchor for single-line). On failure, retry with the exact Anchor§line from the error.",
     inputSchema: {
       path: z.string().describe("Workspace-relative file path."),
       sessionId: z.string().max(256).optional().describe("Anchor session id used for anchored_read."),
@@ -162,7 +162,7 @@ server.registerTool(
   "anchored_edit_many",
   {
     title: "Anchored Edit Many",
-    description: "Apply exact anchor-targeted edits across multiple files. Validates every file before writing any file when atomic is true.",
+    description: "Use instead of multiple anchored_edit calls when changing more than one file — validates all files before writing any.",
     inputSchema: {
       sessionId: z.string().max(256).optional().describe("Default anchor session id used for files without their own sessionId."),
       files: z.array(z.object({
@@ -192,7 +192,7 @@ server.registerTool(
   "anchored_edit_status",
   {
     title: "Anchored Edit Status",
-    description: "Report server workspace, tool status, and current anchor store contents. Use this to debug anchor failures — it shows which files and sessions have active anchors.",
+    description: "Check active anchors and session state. Use at task start or to diagnose anchor failures.",
     inputSchema: {},
     annotations: { readOnlyHint: true },
   },

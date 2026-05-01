@@ -9,7 +9,9 @@ export function readAnchored({ path, content, store, sessionId, startLine, endLi
   const start = Math.max(0, (startLine || 1) - 1)
   const end = Math.min(lines.length, endLine || lines.length)
   const body = lines.slice(start, end).map((line, offset) => formatAnchoredLine(anchors[start + offset], line)).join("\n")
-  const text = `[File Hash: ${contentHash(content)}]\n${body}`
+  const isPartial = (startLine && startLine > 1) || (endLine && endLine < lines.length)
+  const savingsNote = isPartial ? ` [Showing lines ${start + 1}–${end} of ${lines.length}; ~${Math.max(0, lines.length - (end - start))} lines (~${Math.round(Math.max(0, lines.length - (end - start)) / lines.length * 100)}%) not transferred]` : ""
+  const text = `[File Hash: ${contentHash(content)}]${savingsNote}\n${body}`
   return {
     path,
     fileHash: contentHash(content),
