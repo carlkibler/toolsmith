@@ -206,3 +206,11 @@ test("searchAnchored telemetry shows tokens avoided vs full file", () => {
   assert(result.telemetry.estimatedTokensAvoided > 0, "search result is much smaller than the full file")
   assert.equal(result.matches.length, 1)
 })
+
+test("searchAnchored returns error for catastrophically backtracking regex", { timeout: 1000 }, () => {
+  const store = new AnchorStore()
+  const content = "aaaaaaaaaaaa"
+  const result = searchAnchored({ path: "test.txt", content, store, sessionId: "s", query: "(a+)+$", regex: true })
+  assert.ok(result.error)
+  assert.match(result.error, /backtrack/)
+})

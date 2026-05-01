@@ -56,6 +56,13 @@ test("symbolReplace returns failure shape for regex pattern exceeding length cap
   assert.match(result.errors[0], /too long/)
 })
 
+test("symbolReplace returns failure shape for catastrophically backtracking regex", { timeout: 1000 }, () => {
+  const store = new AnchorStore()
+  const result = symbolReplace({ path: "demo.js", content, store, sessionId: "sym", name: "beta", search: "(a+)+$", replacement: "x", regex: true })
+  assert.equal(result.ok, false)
+  assert.match(result.errors[0], /backtrack/)
+})
+
 test("WorkspaceTools symbolReplace includes telemetry", async () => {
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-telemetry-"))
   await fs.writeFile(path.join(cwd, "demo.js"), content, "utf8")
