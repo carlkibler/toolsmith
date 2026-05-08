@@ -1,0 +1,25 @@
+node_modules/
+*.tgz
+.pi/
+.DS_Store
+
+# Beads / Dolt files
+.dolt/
+*.db
+.beads-credential-key
+.beads/issues.jsonl
+.beads/memory/
+.beads/embeddeddolt/
+.beads/last-touched
+.beads/.local_version
+
+# Local Claude Code config and runtime artifacts (do not publish)
+.claude/settings.json
+.claude/settings.*.bak
+.claude/.cozempic-init.lock
+.claude/hooks/
+.worktrees/
+
+# beads-compound: persist knowledge across machines
+!.beads/memory/
+!.beads/memory/**

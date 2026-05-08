@@ -1,0 +1,71 @@
+{
+  "name": "@carlkibler/toolsmith",
+  "version": "0.1.24",
+  "description": "Portable hash-anchored edit primitives for coding agent harnesses — low-token file reads and exact batched edits.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "agent",
+    "ai",
+    "llm",
+    "edit",
+    "anchor",
+    "codegen",
+    "toolsmith",
+    "claude",
+    "codex"
+  ],
+  "homepage": "https://github.com/carlkibler/toolsmith#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/carlkibler/toolsmith.git"
+  },
+  "bugs": {
+    "url": "https://github.com/carlkibler/toolsmith/issues"
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check src/*.js lib/*.js bin/*.js extensions/*.js && node --test",
+    "install:harnesses": "./scripts/install-harnesses.sh",
+    "test:harnesses": "./scripts/test-harnesses.sh",
+    "test:harnesses:live": "./scripts/test-harnesses.sh --live"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "dependencies": {},
+  "bin": {
+    "toolsmith": "bin/toolsmith.js",
+    "toolsmith-mcp": "bin/toolsmith-mcp.js"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@mariozechner/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "files": [
+    "bin/",
+    "docs/",
+    "extensions/",
+    "lib/",
+    "scripts/",
+    "src/",
+    "AGENTS.md",
+    "README.md",
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "toolsmith",
+  "project_id": "4a1058fe-d2b5-403b-b9f6-10f995028e32"
+}

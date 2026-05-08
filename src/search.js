@@ -1,0 +1,71 @@
+import { contentHash } from "./hash.js"
+import { formatAnchoredLine, splitLines } from "./anchors.js"
+import { makeTelemetry } from "./telemetry.js"
+import { checkRegexSafety } from "./regex-safety.js"
+
+export function searchAnchored({ path, content, store, sessionId, workspaceKey, query, regex = false, caseSensitive = false, contextLines = 1, maxMatches = 20 }) {
+  if (!store) throw new Error("searchAnchored requires an AnchorStore")
+  if (!query || typeof query !== "string") throw new Error("query is required")
+
+  const lines = splitLines(content)
+  const anchors = store.reconcile(path, content, { sessionId, workspaceKey })
+  let matcher
+  try {
+    matcher = makeMatcher(query, { regex, caseSensitive })
+  } catch (e) {
+    const wsTag = workspaceKey ? `[Workspace: ${workspaceKey}] ` : ""
+    const text = `${wsTag}[File: ${path}] [Error: ${e.message}]`
+    return { path, fileHash: contentHash(content), query, regex, caseSensitive, contextLines, maxMatches, matches: [], text, error: e.message, telemetry: makeTelemetry({ operation: "anchored_search", fullContent: content, requestPayload: { path, sessionId, query, regex, caseSensitive, contextLines, maxMatches }, responseText: text, anchors: [] }) }
+  }
+  const matches = []
+
+  for (let index = 0; index < lines.length && matches.length < maxMatches; index += 1) {
+    if (!matcher(lines[index])) continue
+    const start = Math.max(0, index - contextLines)
+    const end = Math.min(lines.length, index + contextLines + 1)
+    matches.push({
+      line: index + 1,
+      anchor: anchors[index],
+      text: lines[index],
+      startLine: start + 1,
+      endLine: end,
+      snippet: lines.slice(start, end).map((line, offset) => formatAnchoredLine(anchors[start + offset], line)).join("\n"),
+    })
+  }
+
+  const text = formatSearchText({ path, content, workspaceKey, matches, truncated: countMatches(lines, matcher) > matches.length })
+  return { path, fileHash: contentHash(content), query, regex, caseSensitive, contextLines, maxMatches, matches, text, telemetry: makeTelemetry({ operation: "anchored_search", fullContent: content, requestPayload: { path, sessionId, query, regex, caseSensitive, contextLines, maxMatches }, responseText: text, anchors: matches.map((match) => match.anchor) }) }
+}
+
+function makeMatcher(query, { regex, caseSensitive }) {
+  if (regex) {
+    if (query.length > 1024) throw new Error("regex pattern too long (max 1024 chars)")
+    const flags = caseSensitive ? "" : "i"
+    let pattern
+    try {
+      pattern = new RegExp(query, flags)
+    } catch (e) {
+      throw new Error(`invalid regex: ${e.message}`)
+    }
+    checkRegexSafety(query, flags)
+    return (line) => pattern.test(line)
+  }
+  const needle = caseSensitive ? query : query.toLowerCase()
+  return (line) => (caseSensitive ? line : line.toLowerCase()).includes(needle)
+}
+
+function countMatches(lines, matcher) {
+  let count = 0
+  for (const line of lines) if (matcher(line)) count += 1
+  return count
+}
+
+function formatSearchText({ path, content, workspaceKey, matches, truncated }) {
+  const totalLines = splitLines(content).length
+  const matchedLines = new Set(matches.flatMap((m) => Array.from({ length: m.endLine - m.startLine + 1 }, (_, i) => m.startLine + i))).size
+  const savedPct = totalLines > 0 ? Math.round((1 - matchedLines / totalLines) * 100) : 0
+  const workspaceTag = workspaceKey ? `[Workspace: ${workspaceKey}] ` : ""
+  const header = `${workspaceTag}[File: ${path}] [File Hash: ${contentHash(content)}] [Matches: ${matches.length}${truncated ? "+" : ""}] [~${savedPct}% of file not transferred]`
+  if (matches.length === 0) return `${header}\n(no matches)`
+  return `${header}\n${matches.map((match) => `--- match line ${match.line} ---\n${match.snippet}`).join("\n")}`
+}
