@@ -30,8 +30,8 @@ Install / health
                  Add or remove toolsmith preference block from CLAUDE.md / AGENTS.md.
   doctor|doc     [--fix [--yes]] [--smoke] [--online] [--live-agent]
                  Check registration, drift, adoption, and log health. --fix self-repairs.
-  update         [--from PATH] [--no-setup] [--no-codex-footer] [--check]
-                 Install latest GitHub release and refresh clients; --from opts into local source.
+  update         [--github] [--from PATH] [--no-setup] [--no-codex-footer] [--check]
+                 Install latest npm release and refresh clients; --github uses GitHub releases, --from uses local path.
   pi             [--with-builtins] [pi args...]
                  Run Pi.dev with Toolsmith tools as the default strict edit harness.
   tripwire      run|install|remove|status|snippet [--client claude|codex|all]

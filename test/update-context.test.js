@@ -46,10 +46,11 @@ async function runUpdate(opts = {}) {
   return result
 }
 
-test("update: installs latest GitHub release even when running from checkout", async () => {
+test("update --github: installs latest GitHub release even when running from checkout", async () => {
   const fake = await makeFakeGlobal()
   try {
     const result = await runUpdate({
+      args: ["--github"],
       env: {
         PATH: `${fake.binDir}:${process.env.PATH}`,
         TOOLSMITH_FAKE_NPM_PREFIX: fake.prefix,
@@ -59,7 +60,7 @@ test("update: installs latest GitHub release even when running from checkout", a
     })
     assert.equal(result.exitCode, undefined)
     const combined = (result.stdout || "") + (result.stderr || "")
-    assert.match(combined, /Updating toolsmith from GitHub release v9\.9\.9/)
+    assert.match(combined, /Updating toolsmith from github \(v9\.9\.9\)/)
     const log = await fs.readFile(fake.npmLog, "utf8")
     assert.match(log, /uninstall\n-g\n@carlkibler\/toolsmith\n--silent/)
     assert.match(log, /install\n-g\ngithub:carlkibler\/toolsmith#v9\.9\.9\n--silent/)
@@ -91,11 +92,11 @@ test("update --from PATH: installs explicit local source instead of release", as
   }
 })
 
-test("update --check: reports current source and latest release without installing", async () => {
+test("update --check --github: reports current source and latest release without installing", async () => {
   const fake = await makeFakeGlobal()
   try {
     const result = await runUpdate({
-      args: ["--check"],
+      args: ["--check", "--github"],
       env: {
         PATH: `${fake.binDir}:${process.env.PATH}`,
         TOOLSMITH_FAKE_NPM_PREFIX: fake.prefix,
@@ -107,7 +108,7 @@ test("update --check: reports current source and latest release without installi
     assert.equal(result.exitCode, undefined)
     const combined = (result.stdout || "") + (result.stderr || "")
     assert.match(combined, /current: v/)
-    assert.match(combined, /latest release: v9\.9\.9, published 2026-05-07/)
+    assert.match(combined, /latest github release: v9\.9\.9, published 2026-05-07/)
     const log = await fs.readFile(fake.npmLog, "utf8")
     assert.equal(log, "prefix\n-g\n")
   } finally {
@@ -116,7 +117,7 @@ test("update --check: reports current source and latest release without installi
 })
 
 
-test("update --check: labels package installs as GitHub release packages", async () => {
+test("update --check: labels npm-global installs as npm packages", async () => {
   const result = await runUpdate({
     args: ["--check"],
     env: {
@@ -127,7 +128,7 @@ test("update --check: labels package installs as GitHub release packages", async
   })
   assert.equal(result.exitCode, undefined)
   const combined = (result.stdout || "") + (result.stderr || "")
-  assert.match(combined, /current: v.*GitHub release package/)
+  assert.match(combined, /current: v.*npm/)
   assert.doesNotMatch(combined, /npm-global/)
 })
 

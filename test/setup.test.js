@@ -51,7 +51,7 @@ test("setup --global: warns about devupgrade re-trap", async () => {
   }
 })
 
-test("setup: labels release-package source without npm-global wording", async () => {
+test("setup: labels npm-global source without internal wording", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-home-"))
   try {
     const result = await execFileAsync(
@@ -60,7 +60,7 @@ test("setup: labels release-package source without npm-global wording", async ()
       { cwd: home, env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin", TOOLSMITH_FAKE_NPM_PREFIX: path.dirname(path.resolve(".")) } },
     ).catch((err) => ({ stdout: err.stdout || "", stderr: err.stderr || "" }))
     const combined = (result.stdout || "") + (result.stderr || "")
-    assert.match(combined, /Setting up toolsmith\.\.\. \(source: GitHub release package\)/)
+    assert.match(combined, /Setting up toolsmith\.\.\. \(source: npm\)/)
     assert.doesNotMatch(combined, /install kind|npm-global/)
   } finally {
     await fs.rm(home, { recursive: true, force: true })
