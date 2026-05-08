@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.26 — 2026-05-08
+
+- Simplify install/update completion messaging to concise follow-up lines.
+- Keep `toolsmith setup` and `toolsmith update` terminal completion output low-noise.
+
 ## 0.1.25 — 2026-05-08
 
 - Make setup/update source labels describe the GitHub release package instead of leaking an internal install-kind label.
