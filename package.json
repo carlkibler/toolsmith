@@ -1,7 +1,7 @@
 {
   "name": "@carlkibler/toolsmith",
-  "version": "0.1.28",
-  "description": "Portable hash-anchored edit primitives for coding agent harnesses — low-token file reads and exact batched edits.",
+  "version": "0.1.29",
+  "description": "Save tokens in AI agent sessions — surgical reads and exact edits for Claude Code, Codex, Gemini CLI, and 15+ more agents.",
   "type": "module",
   "main": "./src/index.js",
   "exports": {
