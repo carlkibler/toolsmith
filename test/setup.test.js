@@ -107,7 +107,7 @@ esac
     ).catch((err) => ({ stdout: err.stdout || "", stderr: err.stderr || "" }))
     const calls = await fs.readFile(callLog, "utf8")
     assert.match(calls, /toolsmith/, "pi install should receive this package path")
-    assert.match(result.stdout || "", /Pi\.dev: installed/, "setup should report Pi install")
+    assert.match(result.stdout || "", /Pi\.dev:\s+installed/, "setup should report Pi install")
   } finally {
     await fs.rm(home, { recursive: true, force: true })
   }
@@ -274,7 +274,7 @@ test("setup: installs Codex token footer without duplicating or clobbering hooks
     assert.equal(hooks.hooks.PreToolUse[0].hooks[0].command, "tl-hook run", "unrelated hook events must be preserved")
     const script = await fs.stat(path.join(home, ".codex", "hooks", "toolsmith-token-footer.sh"))
     assert.equal((script.mode & 0o111) !== 0, true, "footer script must be executable")
-    assert.match(first.stdout || "", /Codex footer: installed/)
+    assert.match(first.stdout || "", /Codex footer:\s+installed/)
   } finally {
     await fs.rm(home, { recursive: true, force: true })
   }
@@ -364,7 +364,7 @@ test("setup: skips Codex footer safely when hooks.json is malformed", async () =
       [CLI, "setup", "--no-smoke", "--force", "--no-priming"],
       { cwd: home, env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin" } },
     ).catch((err) => ({ stdout: err.stdout || "", stderr: err.stderr || "" }))
-    assert.match(result.stdout || "", /Codex footer: skipped/)
+    assert.match(result.stdout || "", /Codex footer:\s+skipped/)
     assert.equal(await fs.readFile(hooksPath, "utf8"), "{ not json", "malformed user hooks.json must be left untouched")
   } finally {
     await fs.rm(home, { recursive: true, force: true })
@@ -385,7 +385,7 @@ for (const command of ["setup", "install"]) {
     assert.equal(updated.match(/^\[".*toolsmith-mcp\.(?:js|mjs)"\]$/gm), null)
     assert.match(updated, /\[projects\."\/tmp"\]\ntrust_level = "trusted"/)
     assert.match(updated, new RegExp(`command = ${JSON.stringify(process.execPath).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`))
-    assert.match(result.stdout, /Codex: refreshed/)
+    assert.match(result.stdout, /Codex:\s+refreshed/)
   })
 }
 

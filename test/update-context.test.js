@@ -147,7 +147,7 @@ test("update: refreshes client integrations through the newly installed global b
     })
     assert.equal(result.exitCode, undefined)
     const setup = await fs.readFile(fake.setupLog, "utf8")
-    assert.equal(setup, "setup\n--force\n--no-smoke\n--no-priming\n--no-codex-footer\n")
+    assert.equal(setup, "setup\n--force\n--no-smoke\n--no-priming\n--no-summary\n--no-codex-footer\n")
   } finally {
     await fs.rm(fake.tmpDir, { recursive: true, force: true })
   }

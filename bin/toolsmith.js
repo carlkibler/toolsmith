@@ -24,7 +24,7 @@ function usage() {
   console.error(`Usage: toolsmith <command> [options]
 
 Install / health
-  setup|install  [--scope user|project|local] [--force] [--global] [--no-smoke] [--no-priming] [--no-codex-footer] [--tripwire]
+  setup|install  [--scope user|project|local] [--force] [--global] [--no-smoke] [--no-priming] [--no-summary] [--no-codex-footer] [--tripwire]
                  Register MCP with Claude Code, Codex, and Gemini. Injects preference hints.
   adopt          --inject | --remove
                  Add or remove toolsmith preference block from CLAUDE.md / AGENTS.md.
