@@ -215,6 +215,14 @@ test("searchAnchored returns error for catastrophically backtracking regex", { t
   assert.match(result.error, /backtrack/)
 })
 
+test("searchAnchored rejects content-specific nested quantifier regex", { timeout: 1000 }, () => {
+  const store = new AnchorStore()
+  const content = `${"x".repeat(30)}!`
+  const result = searchAnchored({ path: "test.txt", content, store, sessionId: "s", query: "(x+)+$", regex: true })
+  assert.ok(result.error)
+  assert.match(result.error, /backtrack/)
+})
+
 test("applyAnchoredEdits content-mismatch error includes human hint", () => {
   const store = new AnchorStore()
   const content = "const a = 1\nconst b = 2\nconst c = 3"
@@ -304,6 +312,46 @@ test("same-position inserts preserve user order", () => {
   assert.equal(result.content, "a\nfirst\nsecond\nb")
 })
 
+test("mixed insert and replace at same splice index preserves both edits", () => {
+  const store = new AnchorStore()
+  const content = "a\nb"
+  const read = readAnchored({ path: "mixed-splice.txt", content, store, sessionId: "mixed-splice" })
+  const a = anchoredLine(read, 0, "a")
+  const b = anchoredLine(read, 1, "b")
+
+  const result = applyAnchoredEdits({
+    path: "mixed-splice.txt",
+    content,
+    store,
+    sessionId: "mixed-splice",
+    edits: [
+      { type: "replace", anchor: b, endAnchor: b, text: "B" },
+      { type: "insert_after", anchor: a, text: "X" },
+    ],
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.content, "a\nX\nB")
+})
+
+test("stripAnchors removes anchors next to punctuation and word characters", () => {
+  const store = new AnchorStore()
+  const content = "fn"
+  const read = readAnchored({ path: "strip-tight.txt", content, store, sessionId: "strip-tight" })
+  const anchored = anchoredLine(read, 0, "fn")
+
+  const result = applyAnchoredEdits({
+    path: "strip-tight.txt",
+    content,
+    store,
+    sessionId: "strip-tight",
+    edits: [{ type: "replace", anchor: anchored, endAnchor: anchored, text: `import{${anchored}}` }],
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.content, "import{fn}")
+})
+
 test("numeric replacement text is preserved instead of treated as empty", () => {
   const store = new AnchorStore()
   const content = "value"
@@ -326,6 +374,7 @@ test("readAnchored rejects invalid ranges", () => {
   const store = new AnchorStore()
   assert.throws(() => readAnchored({ path: "range.txt", content: "a\nb", store, sessionId: "range", startLine: 3, endLine: 2 }), /startLine/)
   assert.throws(() => readAnchored({ path: "range.txt", content: "a\nb", store, sessionId: "range", startLine: 0 }), /positive integer/)
+  assert.throws(() => readAnchored({ path: "range.txt", content: "a\nb", store, sessionId: "range", startLine: 5 }), /beyond end of file/)
 })
 
 

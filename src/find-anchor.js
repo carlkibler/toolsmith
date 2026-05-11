@@ -46,7 +46,12 @@ export async function findAndAnchor({
     let content
     try {
       content = await readFile(file.absolute)
-    } catch {
+    } catch (error) {
+      if (!isDirectory) {
+        searchError = `${file.relative}: ${error instanceof Error ? error.message : String(error)}`
+        truncated = true
+        break
+      }
       continue
     }
     scannedFiles += 1
@@ -68,6 +73,7 @@ export async function findAndAnchor({
       truncated = true
       break
     }
+    if (result.truncated) truncated = true
     if (result.matches.length === 0) continue
     sections.push(result.text)
     for (const match of result.matches) matches.push({ ...match, path: file.relative, fileHash: contentHash(content) })

@@ -39,6 +39,11 @@ test("Pi extension registers anchored tools and executes them", async () => {
   const dogLine = search.details.text.split("\n").find((line) => line.endsWith("§dog"))
   assert(dogLine)
 
+  const badSearch = await registered.get("pi_anchored_search").execute("call-bad-search", { path: "demo.txt", query: "(x+)+$", regex: true }, undefined, undefined, ctx)
+  assert.equal(badSearch.isError, true)
+  assert.match(badSearch.content[0].text, /failed/)
+  assert.match(badSearch.details.error, /catastrophic/)
+
   const edit = await registered.get("pi_anchored_edit").execute("call-2", {
     path: "demo.txt",
     sessionId: "pi",
@@ -47,6 +52,8 @@ test("Pi extension registers anchored tools and executes them", async () => {
 
   assert.equal(edit.isError, false)
   assert.match(edit.content[0].text, /Applied 1 anchored edit/)
+  assert.equal(edit.details.content, undefined)
+  assert.equal(edit.details.anchors, undefined)
   assert.equal(await fs.readFile(path.join(cwd, "demo.txt"), "utf8"), "cat\nDOG\neel")
 })
 
@@ -92,6 +99,19 @@ test("Pi symbol_replace treats not-found as guidance, not a hard adapter error",
   assert.equal(result.isError, false)
   assert.equal(result.details.notFound, true)
   assert.match(result.content[0].text, /pi_get_function/)
+})
+
+test("Pi get_function treats not-found as guidance, not a hard adapter error", async () => {
+  const registered = new Map()
+  extension({ registerTool(tool) { registered.set(tool.name, tool) } })
+
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "code.js"), "function demo() {\n  return 1\n}\n", "utf8")
+
+  const result = await registered.get("pi_get_function").execute("missing", { path: "code.js", name: "nope" }, undefined, undefined, { cwd })
+
+  assert.equal(result.isError, false)
+  assert.equal(result.details.found, false)
 })
 
 test("Pi extension multi-file tool validates before writing", async () => {

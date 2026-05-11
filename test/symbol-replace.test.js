@@ -63,6 +63,14 @@ test("symbolReplace returns failure shape for catastrophically backtracking rege
   assert.match(result.errors[0], /backtrack/)
 })
 
+test("symbolReplace rejects content-specific nested quantifier regex", { timeout: 1000 }, () => {
+  const store = new AnchorStore()
+  const js = `function beta() {\n  return "${"x".repeat(30)}!"\n}\n`
+  const result = symbolReplace({ path: "demo.js", content: js, store, sessionId: "sym", name: "beta", search: "(x+)+$", replacement: "x", regex: true })
+  assert.equal(result.ok, false)
+  assert.match(result.errors[0], /backtrack/)
+})
+
 test("WorkspaceTools symbolReplace includes telemetry", async () => {
   const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-telemetry-"))
   await fs.writeFile(path.join(cwd, "demo.js"), content, "utf8")

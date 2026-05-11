@@ -35,6 +35,20 @@ function toolContent(result, summary) {
   return [{ type: "text", text: verboseOutput() ? result.text : summary }]
 }
 
+function adapterResult(result) {
+  return stripLargePayloadFields(result)
+}
+
+function stripLargePayloadFields(value) {
+  if (Array.isArray(value)) return value.map((item) => stripLargePayloadFields(item))
+  if (!value || typeof value !== "object") return value
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "content" && key !== "anchors")
+      .map(([key, item]) => [key, stripLargePayloadFields(item)]),
+  )
+}
+
 function readSummary(result) {
   const lineCount = result.lineCount ?? result.endLine
   const isFullFile = result.startLine === 1 && result.endLine === lineCount
@@ -47,7 +61,8 @@ function readSummary(result) {
 }
 
 function searchSummary(result) {
-  return `Anchored search ${result.path} matched ${result.matches?.length || 0} line(s) for ${JSON.stringify(result.query)} (hash ${result.fileHash}). Full anchored snippets are in details.text.`
+  if (result.error) return `Anchored search ${result.path} failed for ${JSON.stringify(result.query)}: ${result.error}`
+  return `Anchored search ${result.path} matched ${result.matches?.length || 0}${result.truncated ? "+" : ""} line(s) for ${JSON.stringify(result.query)} (hash ${result.fileHash}). Full anchored snippets are in details.text.`
 }
 
 function skeletonSummary(result) {
@@ -139,7 +154,7 @@ export default function toolsmithPiExtension(pi) {
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await toolsFor(ctx?.cwd).search(params)
-      return { content: toolContent(result, searchSummary(result)), details: result }
+      return { content: toolContent(result, searchSummary(result)), details: result, isError: Boolean(result.error) }
     },
   })
 
@@ -193,7 +208,7 @@ export default function toolsmithPiExtension(pi) {
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await toolsFor(ctx?.cwd).getFunction(params)
-      return { content: toolContent(result, functionSummary(result)), details: result, isError: result.found === false }
+      return { content: toolContent(result, functionSummary(result)), details: result, isError: false }
     },
   })
 
@@ -230,7 +245,7 @@ export default function toolsmithPiExtension(pi) {
         : result.notFound
           ? `No match in ${params.path}: ${result.errors.join("; ")} — try pi_get_function to inspect the current source.`
           : `Symbol replace failed for ${params.path}:\n${result.errors.join("\n")}`
-      return { content: [{ type: "text", text }], details: result, isError: !result.ok && !result.notFound }
+      return { content: [{ type: "text", text }], details: adapterResult(result), isError: !result.ok && !result.notFound }
     },
   })
 
@@ -261,7 +276,7 @@ export default function toolsmithPiExtension(pi) {
       const text = result.ok
         ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}. ${result.beforeHash} -> ${result.afterHash}`
         : `Anchored edit failed for ${result.path}:\n${result.errors.join("\n")}`
-      return { content: [{ type: "text", text }], details: result, isError: !result.ok }
+      return { content: [{ type: "text", text }], details: adapterResult(result), isError: !result.ok }
     },
   })
 
@@ -304,7 +319,7 @@ export default function toolsmithPiExtension(pi) {
       const text = result.ok
         ? `${result.dryRun ? "Would apply" : "Applied"} ${edited} anchored edit(s) across ${result.files.length} file(s).`
         : `Multi-file anchored edit failed:\n${result.errors.join("\n")}`
-      return { content: [{ type: "text", text }], details: result, isError: !result.ok }
+      return { content: [{ type: "text", text }], details: adapterResult(result), isError: !result.ok }
     },
   })
 

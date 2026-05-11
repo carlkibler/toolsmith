@@ -3,7 +3,7 @@ import { contentHash } from "./hash.js"
 import { findSymbolRange } from "./structure.js"
 import { checkRegexSafety } from "./regex-safety.js"
 
-export function symbolReplace({ path, content, store, sessionId, workspaceKey, name, search, replacement = "", regex = false, replaceAll = false, caseSensitive = true }) {
+export function symbolReplace({ path, content, store, sessionId, workspaceKey, name, search, replacement = "", regex = false, replaceAll = false, caseSensitive = true, commitAnchors = true }) {
   if (!store) throw new Error("symbolReplace requires an AnchorStore")
   if (!name || typeof name !== "string") throw new Error("name is required")
   if (!search || typeof search !== "string") throw new Error("search is required")
@@ -26,7 +26,7 @@ export function symbolReplace({ path, content, store, sessionId, workspaceKey, n
   const nextLines = [...lines]
   nextLines.splice(range.startIndex, range.endIndex - range.startIndex + 1, ...afterSymbol.split("\n"))
   const nextContent = nextLines.join("\n")
-  const anchors = store.reconcile(path, nextContent, { sessionId, workspaceKey })
+  const anchors = commitAnchors ? store.reconcile(path, nextContent, { sessionId, workspaceKey }) : []
 
   return {
     ok: true,
@@ -60,7 +60,7 @@ function replaceInText(text, { search, replacement, regex, replaceAll, caseSensi
       return { text, matches: 0, regexError: `invalid regex: ${e.message}` }
     }
     try {
-      checkRegexSafety(search, flags)
+      checkRegexSafety(search, flags, splitLines(text))
     } catch (e) {
       return { text, matches: 0, regexError: e.message }
     }

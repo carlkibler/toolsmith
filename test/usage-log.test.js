@@ -170,3 +170,30 @@ test("UsageLogger summarizes Pi-style details payloads", async () => {
   assert.equal(record.result.changed, true)
   assert.equal(record.result.telemetry.estimatedTokensAvoided, 10)
 })
+
+test("UsageLogger summarizes editMany per-file telemetry", async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-usagelog-many-"))
+  const logPath = path.join(tmpDir, "usage.jsonl")
+  const logger = new UsageLogger({ logPath, cwd: tmpDir, client: "test" })
+
+  await logger.toolCall({
+    tool: "anchored_edit_many",
+    args: { files: [{ path: "a.txt" }, { path: "b.txt" }] },
+    result: {
+      structuredContent: {
+        ok: true,
+        files: [
+          { changed: true, applied: [{}], telemetry: { fullBytes: 100, estimatedTokensAvoided: 10 } },
+          { changed: false, applied: [], telemetry: { fullBytes: 200, estimatedTokensAvoided: 20 } },
+        ],
+      },
+    },
+    durationMs: 1,
+  })
+
+  const [record] = (await fs.readFile(logPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line))
+  assert.equal(record.result.changed, true)
+  assert.equal(record.result.appliedCount, 1)
+  assert.equal(record.result.telemetry.fullBytes, 300)
+  assert.equal(record.result.telemetry.estimatedTokensAvoided, 30)
+})

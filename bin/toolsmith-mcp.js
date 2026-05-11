@@ -32,6 +32,20 @@ function toolContent(result, summary) {
   return [{ type: "text", text: verboseOutput() ? result.text : summary }]
 }
 
+function adapterResult(result) {
+  return stripLargePayloadFields(result)
+}
+
+function stripLargePayloadFields(value) {
+  if (Array.isArray(value)) return value.map((item) => stripLargePayloadFields(item))
+  if (!value || typeof value !== "object") return value
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "content" && key !== "anchors")
+      .map(([key, item]) => [key, stripLargePayloadFields(item)]),
+  )
+}
+
 function readSummary(result) {
   const lineCount = result.lineCount ?? result.endLine
   const isFullFile = result.startLine === 1 && result.endLine === lineCount
@@ -44,11 +58,13 @@ function readSummary(result) {
 }
 
 function searchSummary(result) {
-  return `Anchored search ${result.path} matched ${result.matches?.length || 0} line(s) for ${JSON.stringify(result.query)} (hash ${result.fileHash}). Full anchored snippets are in structuredContent.text.`
+  if (result.error) return `Anchored search ${result.path} failed for ${JSON.stringify(result.query)}: ${result.error}`
+  return `Anchored search ${result.path} matched ${result.matches?.length || 0}${result.truncated ? "+" : ""} line(s) for ${JSON.stringify(result.query)} (hash ${result.fileHash}). Full anchored snippets are in structuredContent.text.`
 }
 
 function findSummary(result) {
-  return `Find and anchor scanned ${result.scannedFiles || 0} file(s), matched ${result.matches?.length || 0} line(s) in ${result.matchedFiles || 0} file(s) for ${JSON.stringify(result.query)}. Full anchored snippets are in structuredContent.text.`
+  if (result.error) return `Find and anchor failed for ${JSON.stringify(result.query)} after scanning ${result.scannedFiles || 0} file(s): ${result.error}`
+  return `Find and anchor scanned ${result.scannedFiles || 0} file(s), matched ${result.matches?.length || 0}${result.truncated ? "+" : ""} line(s) in ${result.matchedFiles || 0} file(s) for ${JSON.stringify(result.query)}. Full anchored snippets are in structuredContent.text.`
 }
 
 function skeletonSummary(result) {
@@ -177,7 +193,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.search(args)
-    return { content: toolContent(result, searchSummary(result)), structuredContent: result }
+    return { content: toolContent(result, searchSummary(result)), structuredContent: result, isError: Boolean(result.error) }
   },
 )
 
@@ -206,7 +222,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.findAndAnchor(args)
-    return { content: toolContent(result, findSummary(result)), structuredContent: result }
+    return { content: toolContent(result, findSummary(result)), structuredContent: result, isError: Boolean(result.error) }
   },
 )
 
@@ -285,7 +301,7 @@ registerTool(
       : result.notFound
         ? `No match in ${args.path}: ${result.errors.join("; ")} — try get_function to inspect the current source.`
         : `Symbol replace failed for ${args.path}:\n${result.errors.join("\n")}`
-    return { content: [{ type: "text", text: summary }], structuredContent: result, isError: !result.ok && !result.notFound }
+    return { content: [{ type: "text", text: summary }], structuredContent: adapterResult(result), isError: !result.ok && !result.notFound }
   },
 )
 
@@ -314,7 +330,7 @@ registerTool(
     const summary = result.ok
       ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}${result.changed ? "" : " (no content change)"}. ${result.beforeHash} -> ${result.afterHash}${warningLines.length ? `\n${warningLines.join("\n")}` : ""}`
       : `Anchored edit failed for ${result.path}:\n${result.errors.join("\n")}`
-    return { content: [{ type: "text", text: summary }], structuredContent: result, isError: !result.ok }
+    return { content: [{ type: "text", text: summary }], structuredContent: adapterResult(result), isError: !result.ok }
   },
 )
 
@@ -356,7 +372,7 @@ registerTool(
     const summary = result.ok
       ? `${result.dryRun ? "Would apply" : "Applied"} ${edited} anchored edit(s) across ${result.files.length} file(s).${warningLines.length ? `\n${warningLines.join("\n")}` : ""}`
       : `Multi-file anchored edit failed:\n${result.errors.join("\n")}`
-    return { content: [{ type: "text", text: summary }], structuredContent: result, isError: !result.ok }
+    return { content: [{ type: "text", text: summary }], structuredContent: adapterResult(result), isError: !result.ok }
   },
 )
 

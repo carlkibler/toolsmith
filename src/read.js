@@ -22,6 +22,7 @@ export function readAnchored({ path, content, store, sessionId, workspaceKey, st
   }
   const requestedStart = normalizeLineNumber(startLine, "startLine") ?? 1
   const requestedEnd = normalizeLineNumber(endLine, "endLine") ?? lines.length
+  if (requestedStart > lines.length) throw new Error(`startLine ${requestedStart} is beyond end of file (${lines.length} lines)`)
   if (requestedStart > requestedEnd) throw new Error("startLine must not be greater than endLine")
   const start = Math.min(lines.length, requestedStart - 1)
   const end = Math.min(lines.length, requestedEnd)

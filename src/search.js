@@ -11,7 +11,7 @@ export function searchAnchored({ path, content, store, sessionId, workspaceKey, 
   const anchors = store.reconcile(path, content, { sessionId, workspaceKey })
   let matcher
   try {
-    matcher = makeMatcher(query, { regex, caseSensitive })
+    matcher = makeMatcher(query, { regex, caseSensitive }, lines)
   } catch (e) {
     const wsTag = workspaceKey ? `[Workspace: ${workspaceKey}] ` : ""
     const text = `${wsTag}[File: ${path}] [Error: ${e.message}]`
@@ -39,7 +39,8 @@ export function searchAnchored({ path, content, store, sessionId, workspaceKey, 
   }
 
   const ranges = mergeRanges(matches)
-  const text = formatSearchText({ path, content, workspaceKey, matches, ranges, anchors, lines, truncated: totalMatches > matches.length })
+  const truncated = totalMatches > matches.length
+  const text = formatSearchText({ path, content, workspaceKey, matches, ranges, anchors, lines, truncated })
   const emittedAnchors = anchorsForRanges(ranges, anchors)
   return {
     path,
@@ -51,6 +52,8 @@ export function searchAnchored({ path, content, store, sessionId, workspaceKey, 
     maxMatches,
     matches,
     ranges: ranges.map((range) => ({ startLine: range.start + 1, endLine: range.end })),
+    totalMatches,
+    truncated,
     text,
     telemetry: {
       ...makeTelemetry({ operation: "anchored_search", fullContent: content, requestPayload: { path, sessionId, query, regex, caseSensitive, contextLines, maxMatches }, responseText: text, anchors: emittedAnchors }),
@@ -60,7 +63,7 @@ export function searchAnchored({ path, content, store, sessionId, workspaceKey, 
   }
 }
 
-function makeMatcher(query, { regex, caseSensitive }) {
+function makeMatcher(query, { regex, caseSensitive }, lines = []) {
   if (regex) {
     if (query.length > 1024) throw new Error("regex pattern too long (max 1024 chars)")
     const flags = caseSensitive ? "" : "i"
@@ -70,7 +73,7 @@ function makeMatcher(query, { regex, caseSensitive }) {
     } catch (e) {
       throw new Error(`invalid regex: ${e.message}`)
     }
-    checkRegexSafety(query, flags)
+    checkRegexSafety(query, flags, lines)
     return (line) => pattern.test(line)
   }
   const needle = caseSensitive ? query : query.toLowerCase()

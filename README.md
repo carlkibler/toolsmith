@@ -80,12 +80,13 @@ import { AnchorStore, readAnchored, applyAnchoredEdits } from "@carlkibler/tools
 const store = new AnchorStore()
 const read = readAnchored({ path: "src/app.js", content, store, sessionId: "task-1" })
 
+const firstLine = read.text.split("\n").find((line) => line.includes("§"))
 const result = applyAnchoredEdits({
   path: "src/app.js",
   content,
   store,
   sessionId: "task-1",
-  edits: [{ type: "replace", anchor: read.anchors[0], text: "const newName = 1" }]
+  edits: [{ type: "replace", anchor: firstLine, endAnchor: firstLine, text: "const newName = 1" }]
 })
 ```
 

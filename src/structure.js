@@ -96,7 +96,7 @@ function findSymbolStart(lines, name) {
     new RegExp(`\\b(?:export\\s+(?:default\\s+)?)?(?:async\\s+)?function\\s+${e}\\b`),
     new RegExp(`\\b(?:export\\s+)?(?:class|def|struct|enum|protocol|interface|type|trait|impl|module|extension)\\s+${e}\\b`),
     new RegExp(`\\b(?:export\\s+)?(?:const|let|var)\\s+${e}(?:\\s*:\\s*.*?)?\\s*=`),
-    new RegExp(`\\b${e}\\s*(?::\\s*.*?)?=\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*=>)`),
+    new RegExp(`^\\s*(?:static\\s+)?${e}\\s*(?::\\s*.*?)?=\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*=>)`),
     new RegExp(`\\b(?:pub(?:\\s*\\([^)]*\\))?\\s+)?(?:async\\s+)?fn\\s+${e}\\b`),
     new RegExp(`\\bfunc\\s+(?:\\([^)]*\\)\\s*)?${e}\\b`),
   ]
@@ -113,8 +113,8 @@ function findOpeningBraceLine(lines, startIndex) {
   const startIndent = indentation(lines[startIndex])
   for (let index = startIndex; index < Math.min(lines.length, startIndex + 20); index += 1) {
     const line = stripCodeNoise(lines[index])
+    if (index > startIndex && line.trim() && indentation(lines[index]) <= startIndent && isSkeletonLine(lines[index])) break
     if (line.includes("{")) return index
-    if (index > startIndex && line.trim() && indentation(line) <= startIndent && isSkeletonLine(line)) break
   }
   return -1
 }
@@ -122,9 +122,11 @@ function findOpeningBraceLine(lines, startIndex) {
 function findBraceEnd(lines, startIndex) {
   let depth = 0
   let seenOpen = false
+  let inBlockComment = false
   for (let index = startIndex; index < lines.length; index += 1) {
-    const line = stripCodeNoise(lines[index])
-    for (const char of line) {
+    const stripped = stripCodeNoiseStateful(lines[index], { inBlockComment })
+    inBlockComment = stripped.inBlockComment
+    for (const char of stripped.line) {
       if (char === "{") {
         depth += 1
         seenOpen = true
@@ -149,9 +151,9 @@ function findIndentEnd(lines, startIndex) {
 
 function findIndentedSignatureEnd(lines, startIndex) {
   for (let index = startIndex; index < Math.min(lines.length, startIndex + 50); index += 1) {
-    const line = stripCodeNoise(lines[index]).trim()
-    if (line.endsWith(":")) return index
+    const line = stripPythonComment(stripCodeNoise(lines[index])).trim()
     if (index > startIndex && line && indentation(lines[index]) <= indentation(lines[startIndex]) && isSkeletonLine(lines[index])) return index - 1
+    if (line.endsWith(":")) return index
   }
   return startIndex
 }
@@ -173,6 +175,33 @@ function indentation(line) {
 function isCommentOnly(line) {
   const t = line.trim()
   return t.startsWith("//") || t.startsWith("#") || t.startsWith("--") || t.startsWith("/*") || t.startsWith("*")
+}
+
+function stripCodeNoiseStateful(line, state) {
+  let output = ""
+  let index = 0
+  let inBlockComment = state.inBlockComment
+  while (index < line.length) {
+    if (inBlockComment) {
+      const end = line.indexOf("*/", index)
+      if (end === -1) return { line: output, inBlockComment: true }
+      index = end + 2
+      inBlockComment = false
+      continue
+    }
+    if (line.startsWith("/*", index)) {
+      inBlockComment = true
+      index += 2
+      continue
+    }
+    output += line[index]
+    index += 1
+  }
+  return { line: stripLineComments(stripQuoted(output)), inBlockComment }
+}
+
+function stripPythonComment(line) {
+  return line.replace(/\s+#.*$/u, "")
 }
 
 function stripCodeNoise(line) {

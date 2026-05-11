@@ -83,19 +83,36 @@ function summarizeArgs(args = {}) {
 
 function summarizeResult(result = {}) {
   const structured = result.structuredContent || result.structured_content || result.details || {}
-  const telemetry = structured.telemetry || result.telemetry
+  const files = Array.isArray(structured.files) ? structured.files : []
+  const fileTelemetries = files.map((file) => file.telemetry).filter(Boolean)
+  const telemetry = structured.telemetry || result.telemetry || aggregateTelemetry(fileTelemetries)
   const base = {
     isError: Boolean(result.isError),
     ok: structured.ok,
     path: structured.path,
-    changed: structured.changed,
+    changed: structured.changed ?? (files.length ? files.some((file) => file.changed) : undefined),
     dryRun: structured.dryRun,
     matchesCount: Array.isArray(structured.matches) ? structured.matches.length : (typeof structured.matches === "number" ? structured.matches : undefined),
-    appliedCount: Array.isArray(structured.applied) ? structured.applied.length : undefined,
-    filesCount: Array.isArray(structured.files) ? structured.files.length : undefined,
+    appliedCount: Array.isArray(structured.applied) ? structured.applied.length : (files.length ? files.reduce((sum, file) => sum + (file.applied?.length || 0), 0) : undefined),
+    filesCount: files.length || undefined,
     telemetry,
   }
   return Object.fromEntries(Object.entries(base).filter(([, value]) => value !== undefined))
+}
+
+function aggregateTelemetry(fileTelemetries) {
+  if (!fileTelemetries.length) return undefined
+  return {
+    operation: "anchored_edit_many",
+    fullBytes: fileTelemetries.reduce((sum, telemetry) => sum + (telemetry.fullBytes || 0), 0),
+    requestBytes: fileTelemetries.reduce((sum, telemetry) => sum + (telemetry.requestBytes || 0), 0),
+    responseBytes: fileTelemetries.reduce((sum, telemetry) => sum + (telemetry.responseBytes || 0), 0),
+    avoidedBytes: fileTelemetries.reduce((sum, telemetry) => sum + (telemetry.avoidedBytes || 0), 0),
+    estimatedFullTokens: fileTelemetries.reduce((sum, telemetry) => sum + (telemetry.estimatedFullTokens || 0), 0),
+    estimatedResponseTokens: fileTelemetries.reduce((sum, telemetry) => sum + (telemetry.estimatedResponseTokens || 0), 0),
+    estimatedTokensAvoided: fileTelemetries.reduce((sum, telemetry) => sum + (telemetry.estimatedTokensAvoided || 0), 0),
+    anchorCount: fileTelemetries.reduce((sum, telemetry) => sum + (telemetry.anchorCount || 0), 0),
+  }
 }
 
 export class UsageLogger {

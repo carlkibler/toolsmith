@@ -1,5 +1,6 @@
 import fs from "node:fs/promises"
 import { constants as fsConstants } from "node:fs"
+import { isUtf8 } from "node:buffer"
 import path from "node:path"
 
 // O_NOFOLLOW: fail if final path component is a symlink. Not available on Windows.
@@ -18,6 +19,7 @@ const DEFAULT_MAX_BYTES = 512 * 1024
 
 export class WorkspaceTools {
   #realCwd = null
+  #locks = new Map()
 
   constructor({ cwd = process.cwd(), store = new AnchorStore(), maxBytes = DEFAULT_MAX_BYTES } = {}) {
     this.cwd = path.resolve(cwd)
@@ -34,20 +36,24 @@ export class WorkspaceTools {
     const absolute = path.resolve(this.cwd, inputPath)
     const relative = path.relative(this.cwd, absolute)
     if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
-      return { absolute, relative: relative || path.basename(absolute) }
+      return { absolute, relative: relative || "." }
     }
     throw new Error(`path escapes workspace: ${inputPath}`)
   }
 
   async read({ path: inputPath, sessionId = "default", startLine, endLine }) {
+    const safeStartLine = optionalBoundedInt(startLine, "startLine", 1, Number.MAX_SAFE_INTEGER)
+    const safeEndLine = optionalBoundedInt(endLine, "endLine", 1, Number.MAX_SAFE_INTEGER)
     const { absolute, relative } = this.resolvePath(inputPath)
     await this.#assertContained(absolute)
     const content = await this.#openAndRead(absolute)
-    return readAnchored({ path: relative, content, store: this.store, sessionId, workspaceKey: this.workspaceKey, startLine, endLine })
+    return readAnchored({ path: relative, content, store: this.store, sessionId, workspaceKey: this.workspaceKey, startLine: safeStartLine, endLine: safeEndLine })
   }
 
 
   async search({ path: inputPath, sessionId = "default", query, regex = false, caseSensitive = false, contextLines = 1, maxMatches = 20 }) {
+    contextLines = boundedInt(contextLines, "contextLines", 1, 0, 20)
+    maxMatches = boundedInt(maxMatches, "maxMatches", 20, 1, 200)
     const { absolute, relative } = this.resolvePath(inputPath)
     await this.#assertContained(absolute)
     const content = await this.#openAndRead(absolute)
@@ -55,6 +61,7 @@ export class WorkspaceTools {
   }
 
   async skeleton({ path: inputPath, sessionId = "default", maxLines = 200 }) {
+    maxLines = boundedInt(maxLines, "maxLines", 200, 1, 1000)
     const { absolute, relative } = this.resolvePath(inputPath)
     await this.#assertContained(absolute)
     const content = await this.#openAndRead(absolute)
@@ -62,12 +69,18 @@ export class WorkspaceTools {
   }
 
   async getFunction({ path: inputPath, sessionId = "default", name, contextLines = 0, maxLines = 400 }) {
+    contextLines = boundedInt(contextLines, "contextLines", 0, 0, 50)
+    maxLines = boundedInt(maxLines, "maxLines", 400, 1, 2000)
     const { absolute, relative } = this.resolvePath(inputPath)
     await this.#assertContained(absolute)
     const content = await this.#openAndRead(absolute)
     return getFunction({ path: relative, content, store: this.store, sessionId, workspaceKey: this.workspaceKey, name, contextLines, maxLines })
   }
   async findAndAnchor({ path: inputPath = ".", sessionId = "default", query, regex = false, caseSensitive = false, contextLines = 2, maxMatches = 20, maxFiles = 80, maxMatchesPerFile = 5, glob }) {
+    contextLines = boundedInt(contextLines, "contextLines", 2, 0, 20)
+    maxMatches = boundedInt(maxMatches, "maxMatches", 20, 1, 200)
+    maxFiles = boundedInt(maxFiles, "maxFiles", 80, 1, 1000)
+    maxMatchesPerFile = boundedInt(maxMatchesPerFile, "maxMatchesPerFile", 5, 1, 50)
     const { absolute } = this.resolvePath(inputPath)
     await this.#assertContained(absolute)
     const rootRelative = path.relative(this.cwd, absolute) || "."
@@ -103,50 +116,66 @@ export class WorkspaceTools {
 
   async symbolReplace({ path: inputPath, sessionId = "default", name, search, replacement = "", regex = false, replaceAll = false, caseSensitive = true, dryRun = false }) {
     const { absolute, relative } = this.resolvePath(inputPath)
-    await this.#assertContained(absolute)
-    const before = await this.#openAndRead(absolute)
-    const result = symbolReplace({ path: relative, content: before, store: this.store, sessionId, workspaceKey: this.workspaceKey, name, search, replacement, regex, replaceAll, caseSensitive })
+    return this.#withLocks([absolute], async () => {
+      await this.#assertContained(absolute)
+      const before = await this.#openAndRead(absolute)
+      const result = symbolReplace({ path: relative, content: before, store: this.store, sessionId, workspaceKey: this.workspaceKey, name, search, replacement, regex, replaceAll, caseSensitive, commitAnchors: false })
 
-    if (result.ok && result.changed && !dryRun) {
-      await this.#openAndWrite(absolute, result.content)
-    }
+      if (result.ok && result.changed && !dryRun) {
+        await this.#openAndWrite(absolute, result.content)
+        result.anchors = this.store.reconcile(relative, result.content, { sessionId, workspaceKey: this.workspaceKey })
+      }
 
-    return {
-      ...result,
-      dryRun,
-      telemetry: makeTelemetry({ operation: "symbol_replace", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId, name, search, replacement, regex, replaceAll, caseSensitive, dryRun }, responseText: JSON.stringify({ ok: result.ok, errors: result.errors, matches: result.matches }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
-    }
+      return {
+        ...result,
+        dryRun,
+        telemetry: makeTelemetry({ operation: "symbol_replace", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId, name, search, replacement, regex, replaceAll, caseSensitive, dryRun }, responseText: JSON.stringify({ ok: result.ok, errors: result.errors, matches: result.matches }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
+      }
+    })
   }
 
   async edit({ path: inputPath, sessionId = "default", workspace, edits, atomic = true, dryRun = false }) {
+    assertEditBudget(edits, this.maxBytes)
     const { absolute, relative } = this.resolvePath(inputPath)
-    await this.#assertContained(absolute)
-    const before = await this.#openAndRead(absolute)
-    const result = applyAnchoredEdits({ path: relative, content: before, store: this.store, sessionId, workspaceKey: this.workspaceKey, workspace, edits, atomic })
-    const changed = result.content !== before
+    return this.#withLocks([absolute], async () => {
+      await this.#assertContained(absolute)
+      const before = await this.#openAndRead(absolute)
+      const result = applyAnchoredEdits({ path: relative, content: before, store: this.store, sessionId, workspaceKey: this.workspaceKey, workspace, edits, atomic, commitAnchors: false })
+      const changed = result.content !== before
 
-    if (result.ok && changed && !dryRun) {
-      await this.#openAndWrite(absolute, result.content)
-    }
+      if (result.ok && changed && !dryRun) {
+        await this.#openAndWrite(absolute, result.content)
+        result.anchors = this.store.reconcile(relative, result.content, { sessionId, workspaceKey: this.workspaceKey })
+      }
 
-    return {
-      ...result,
-      path: relative,
-      dryRun,
-      changed,
-      beforeHash: contentHash(before),
-      afterHash: contentHash(result.content),
-      telemetry: makeTelemetry({ operation: "anchored_edit", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId, edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
-    }
+      return {
+        ...result,
+        path: relative,
+        dryRun,
+        changed,
+        sessionId,
+        beforeHash: contentHash(before),
+        afterHash: contentHash(result.content),
+        telemetry: makeTelemetry({ operation: "anchored_edit", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId, edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
+      }
+    })
   }
 
   async editMany({ files, sessionId = "default", workspace, atomic = true, dryRun = false }) {
     if (!Array.isArray(files) || files.length === 0) throw new Error("files must be a non-empty array")
+    if (files.length > 50) throw new Error("files must contain at most 50 entries")
+    for (const file of files) assertEditBudget(file?.edits, this.maxBytes)
 
-    const prepared = []
-    const errors = []
+    const lockPaths = []
+    for (const file of files) {
+      try { lockPaths.push(this.resolvePath(file.path).absolute) } catch {}
+    }
 
-    const reads = await Promise.all(files.map(async (file) => {
+    return this.#withLocks(lockPaths, async () => {
+      const prepared = []
+      const errors = []
+
+      const reads = await Promise.all(files.map(async (file) => {
       try {
         const { absolute, relative } = this.resolvePath(file.path)
         await this.#assertContained(absolute)
@@ -179,6 +208,7 @@ export class WorkspaceTools {
         workspace,
         edits: file.edits,
         atomic,
+        commitAnchors: false,
       })
       const changed = result.content !== before
       const item = {
@@ -186,6 +216,7 @@ export class WorkspaceTools {
         path: relative,
         dryRun,
         changed,
+        sessionId: file.sessionId || sessionId,
         beforeHash: contentHash(before),
         afterHash: contentHash(result.content),
         telemetry: makeTelemetry({ operation: "anchored_edit_many:file", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId: file.sessionId || sessionId, edits: file.edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
@@ -203,11 +234,39 @@ export class WorkspaceTools {
     const writable = errors.length > 0 ? prepared.filter((entry) => entry.item.ok) : prepared
     if (!dryRun) {
       for (const entry of writable) {
-        if (entry.item.changed) await this.#openAndWrite(entry.absolute, entry.item.content)
+        if (entry.item.changed) {
+          await this.#openAndWrite(entry.absolute, entry.item.content)
+          entry.item.anchors = this.store.reconcile(entry.item.path, entry.item.content, { sessionId: entry.item.sessionId || sessionId, workspaceKey: this.workspaceKey })
+        }
       }
     }
 
-    return { ok: errors.length === 0, dryRun, errors, warnings: allWarnings, files: prepared.map((entry) => entry.item) }
+      return { ok: errors.length === 0, dryRun, errors, warnings: allWarnings, files: prepared.map((entry) => entry.item) }
+    })
+  }
+
+  async #withLocks(absolutePaths, fn) {
+    const keys = [...new Set(absolutePaths)].sort()
+    const releases = []
+    try {
+      for (const key of keys) releases.push(await this.#acquireLock(key))
+      return await fn()
+    } finally {
+      for (const release of releases.reverse()) release()
+    }
+  }
+
+  async #acquireLock(key) {
+    const previous = this.#locks.get(key) || Promise.resolve()
+    let release
+    const current = new Promise((resolve) => { release = resolve })
+    const chained = previous.then(() => current, () => current)
+    this.#locks.set(key, chained)
+    await previous.catch(() => {})
+    return () => {
+      release()
+      if (this.#locks.get(key) === chained) this.#locks.delete(key)
+    }
   }
 
   async #assertContained(absolute) {
@@ -239,8 +298,10 @@ export class WorkspaceTools {
     try {
       const stats = await fd.stat()
       if (!stats.isFile()) throw new Error(`not a file: ${path.relative(this.cwd, absolute)}`)
-      if (stats.size > this.maxBytes) throw new Error(`file is too large (${stats.size} bytes > ${this.maxBytes}); use startLine/endLine for partial reads, or file_skeleton for structure`)
-      return await fd.readFile("utf8")
+      if (stats.size > this.maxBytes) throw new Error(`file is too large (${stats.size} bytes > ${this.maxBytes}); use file_skeleton or find_and_anchor for targeted navigation`)
+      const buffer = await fd.readFile()
+      if (looksBinary(buffer)) throw new Error(`refusing to read binary file: ${path.relative(this.cwd, absolute)}`)
+      return buffer.toString("utf8")
     } finally {
       await fd.close()
     }
@@ -249,21 +310,57 @@ export class WorkspaceTools {
   async #openAndWrite(absolute, content) {
     const contentBytes = Buffer.byteLength(content, "utf8")
     if (contentBytes > this.maxBytes) throw new Error(`edit result exceeds size limit (${contentBytes} bytes > ${this.maxBytes}); split into smaller edits`)
-    const writeFlags = fsConstants.O_WRONLY | fsConstants.O_TRUNC | O_NOFOLLOW
+
+    let stats
+    try {
+      stats = await fs.lstat(absolute)
+    } catch (e) {
+      throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
+    }
+    if (stats.isSymbolicLink()) throw new Error(`${path.relative(this.cwd, absolute)}: refusing to write through symlink`)
+    if (!stats.isFile()) throw new Error(`not a file: ${path.relative(this.cwd, absolute)}`)
+
+    const dir = path.dirname(absolute)
+    const base = path.basename(absolute)
+    const temp = path.join(dir, `.${base}.toolsmith-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`)
     let fd
     try {
-      fd = await fs.open(absolute, writeFlags)
-    } catch (e) {
-      if (e.code === "ELOOP" && O_NOFOLLOW !== 0) {
-        throw new Error(`${path.relative(this.cwd, absolute)}: refusing to write through symlink`)
-      } else {
-        throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
-      }
-    }
-    try {
+      fd = await fs.open(temp, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL, stats.mode & 0o777)
       await fd.writeFile(content, "utf8")
-    } finally {
+      await fd.sync()
       await fd.close()
+      fd = null
+      await fs.rename(temp, absolute)
+      await fs.chmod(absolute, stats.mode & 0o777).catch(() => {})
+    } catch (e) {
+      if (fd) await fd.close().catch(() => {})
+      await fs.rm(temp, { force: true }).catch(() => {})
+      throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
     }
   }
+}
+
+function boundedInt(value, name, fallback, min, max) {
+  const number = value === undefined || value === null ? fallback : Number(value)
+  if (!Number.isInteger(number) || number < min || number > max) throw new Error(`${name} must be an integer ${min}..${max}`)
+  return number
+}
+
+function optionalBoundedInt(value, name, min, max) {
+  if (value === undefined || value === null) return undefined
+  return boundedInt(value, name, undefined, min, max)
+}
+
+function assertEditBudget(edits, maxBytes) {
+  if (!Array.isArray(edits) || edits.length === 0) throw new Error("edits must be a non-empty array")
+  if (edits.length > 100) throw new Error("edits must contain at most 100 entries")
+  for (const edit of edits) {
+    const bytes = Buffer.byteLength(String(edit?.text ?? ""), "utf8")
+    if (bytes > maxBytes) throw new Error(`edit text exceeds size limit (${bytes} bytes > ${maxBytes})`)
+  }
+}
+
+function looksBinary(buffer) {
+  const sample = buffer.subarray(0, Math.min(buffer.length, 8192))
+  return sample.includes(0) || !isUtf8(buffer)
 }

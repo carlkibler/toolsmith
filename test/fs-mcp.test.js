@@ -48,6 +48,19 @@ test("WorkspaceTools reads a regular file normally", async () => {
   assert.match(result.text, /§hello/)
 })
 
+test("WorkspaceTools resolvePath reports cwd as dot", async () => {
+  const cwd = await tempWorkspace()
+  const tools = new WorkspaceTools({ cwd })
+  assert.equal(tools.resolvePath(".").relative, ".")
+})
+
+test("WorkspaceTools rejects binary reads", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "blob"), Buffer.from([0, 1, 2, 65]))
+  const tools = new WorkspaceTools({ cwd })
+  await assert.rejects(() => tools.read({ path: "blob" }), /binary file/)
+})
+
 test("WorkspaceTools findAndAnchor searches directories with editable anchors", async () => {
   const cwd = await tempWorkspace()
   await fs.mkdir(path.join(cwd, "src"))
@@ -83,6 +96,30 @@ test("WorkspaceTools findAndAnchor limits matches per file during directory sear
   assert.equal(result.maxMatchesPerFile, 1)
   assert(result.matches.some((match) => match.path === "src/one.js"))
   assert(result.matches.some((match) => match.path === "src/two.js"))
+  assert.equal(result.truncated, true)
+})
+
+test("WorkspaceTools findAndAnchor reports truncation for single-file searches", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "hit.txt"), "needle one\nneedle two\nneedle three", "utf8")
+  const tools = new WorkspaceTools({ cwd })
+
+  const result = await tools.findAndAnchor({ path: "hit.txt", query: "needle", maxMatches: 2, contextLines: 0 })
+
+  assert.equal(result.matches.length, 2)
+  assert.equal(result.truncated, true)
+  assert.match(result.text, /Matches: 2\+/)
+})
+
+test("WorkspaceTools findAndAnchor surfaces explicit file read errors", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "big.txt"), `${"needle\n".repeat(90000)}`, "utf8")
+  const tools = new WorkspaceTools({ cwd })
+
+  const result = await tools.findAndAnchor({ path: "big.txt", query: "needle" })
+
+  assert.equal(result.error !== null, true)
+  assert.match(result.text, /too large/)
 })
 
 test("CLI read emits anchored content", async () => {
@@ -166,6 +203,11 @@ test("MCP server lists and calls anchored tools", async () => {
     assert.doesNotMatch(search.content[0].text, /§green/)
     assert.match(search.structuredContent.text, /§green/)
 
+    const badSearch = await client.callTool("anchored_search", { path: "demo.txt", query: "(x+)+$", regex: true, sessionId: "mcp" })
+    assert.equal(badSearch.isError, true)
+    assert.match(badSearch.content[0].text, /failed/)
+    assert.match(badSearch.structuredContent.error, /catastrophic/)
+
     const read = await client.callTool("anchored_read", { path: "demo.txt", sessionId: "mcp" })
     assert.doesNotMatch(read.content[0].text, /§green/)
     const readText = read.structuredContent.text
@@ -177,6 +219,8 @@ test("MCP server lists and calls anchored tools", async () => {
       edits: [{ type: "replace", anchor: greenLine, endAnchor: greenLine, text: "GREEN" }],
     })
     assert.equal(edit.isError, false)
+    assert.equal(edit.structuredContent.content, undefined)
+    assert.equal(edit.structuredContent.anchors, undefined)
     assert.match(edit.content[0].text, /Applied 1 anchored edit/)
     assert.equal(await fs.readFile(path.join(cwd, "demo.txt"), "utf8"), "red\nGREEN\nblue")
 
@@ -294,6 +338,22 @@ test("WorkspaceTools dryRun validates without writing", async () => {
   assert.equal(await fs.readFile(path.join(cwd, "demo.txt"), "utf8"), "one\ntwo")
 })
 
+test("WorkspaceTools dryRun does not commit hypothetical duplicate-line anchors", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "dupe.txt"), "x\nx", "utf8")
+  const tools = new WorkspaceTools({ cwd })
+  const read = await tools.read({ path: "dupe.txt", sessionId: "dupe" })
+  const first = `${read.anchors[0]}§x`
+  const second = `${read.anchors[1]}§x`
+
+  const dry = await tools.edit({ path: "dupe.txt", sessionId: "dupe", dryRun: true, edits: [{ type: "replace", anchor: first, endAnchor: first, text: "y" }] })
+  assert.equal(dry.ok, true)
+
+  const live = await tools.edit({ path: "dupe.txt", sessionId: "dupe", edits: [{ type: "replace", anchor: second, endAnchor: second, text: "Z" }] })
+  assert.equal(live.ok, true)
+  assert.equal(await fs.readFile(path.join(cwd, "dupe.txt"), "utf8"), "x\nZ")
+})
+
 test("WorkspaceTools read respects startLine and endLine", async () => {
   const cwd = await tempWorkspace()
   const lines = Array.from({ length: 200 }, (_, i) => `line ${i + 1} ${"x".repeat(40)}`).join("\n")
@@ -337,6 +397,8 @@ test("MCP anchored_edit_many applies cross-file batch", async () => {
     })
 
     assert.equal(result.isError, false)
+    assert.equal(result.structuredContent.files[0].content, undefined)
+    assert.equal(result.structuredContent.files[0].anchors, undefined)
     assert.equal(await fs.readFile(path.join(cwd, "one.txt"), "utf8"), "A\nb")
     assert.equal(await fs.readFile(path.join(cwd, "two.txt"), "utf8"), "c\nD")
   } finally {

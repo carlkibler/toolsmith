@@ -8,7 +8,7 @@ import {
 
 const VALID_ANCHOR = /^A[a-zA-Z0-9]+$/
 
-export function applyAnchoredEdits({ path, content, store, sessionId, workspaceKey, workspace, edits, atomic = true }) {
+export function applyAnchoredEdits({ path, content, store, sessionId, workspaceKey, workspace, edits, atomic = true, commitAnchors = true }) {
   if (!store) throw new Error("applyAnchoredEdits requires an AnchorStore")
   if (!Array.isArray(edits)) throw new Error("edits must be an array")
 
@@ -34,23 +34,29 @@ export function applyAnchoredEdits({ path, content, store, sessionId, workspaceK
   if (overlapError) errors.push(overlapError)
 
   if (overlapError || (errors.length > 0 && atomic)) {
-    const validatedEdits = resolved.filter((e) => !e.invalid).map((e) => e.editIndex)
+    const validatedEdits = resolved.map((e) => e.editIndex)
     return { ok: false, content, errors, warnings, applied: [], validatedEdits }
   }
 
-  const usable = errors.length > 0 ? resolved.filter((edit) => !edit.invalid) : resolved
+  const usable = resolved
   const nextLines = [...lines]
   const applied = []
 
-  for (const edit of [...usable].sort((left, right) => right.spliceIndex - left.spliceIndex || right.editIndex - left.editIndex)) {
+  for (const edit of [...usable].sort(compareEditsForSplice)) {
     nextLines.splice(edit.spliceIndex, edit.deleteCount, ...edit.replacementLines)
     applied.push({ type: edit.type, anchor: edit.anchor, endAnchor: edit.endAnchor, linesAdded: edit.replacementLines.length, linesDeleted: edit.deleteCount })
   }
 
   const nextContent = nextLines.join("\n")
-  const nextAnchors = store.reconcile(path, nextContent, { sessionId, workspaceKey })
+  const nextAnchors = commitAnchors ? store.reconcile(path, nextContent, { sessionId, workspaceKey }) : []
 
   return { ok: errors.length === 0, content: nextContent, errors, warnings, applied: applied.reverse(), anchors: nextAnchors }
+}
+
+function compareEditsForSplice(left, right) {
+  return right.spliceIndex - left.spliceIndex
+    || Math.sign(right.deleteCount) - Math.sign(left.deleteCount)
+    || right.editIndex - left.editIndex
 }
 
 function resolveEdit(edit, editIndex, lines, anchors) {

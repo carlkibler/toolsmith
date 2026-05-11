@@ -344,3 +344,67 @@ pub fn checks() {
   const rsResult = getFunction({ path: "decorated.rs", content: rs, store, sessionId: "decorated-rs", name: "checks" })
   assert.match(rsResult.text, /§#\[test\]/)
 })
+
+test("getFunction type alias does not swallow following braced symbol", () => {
+  const store = new AnchorStore()
+  const ts = `export type Handler = (value: string) => string
+export class Server {
+  start() {}
+}
+`
+  const result = getFunction({ path: "alias.ts", content: ts, store, sessionId: "alias", name: "Handler" })
+
+  assert.equal(result.found, true)
+  assert.match(result.text, /type Handler/)
+  assert.doesNotMatch(result.text, /class Server/)
+})
+
+test("getFunction ignores braces inside multiline block comments", () => {
+  const store = new AnchorStore()
+  const js = `function tricky() {
+  /*
+  }
+  */
+  return 1
+}
+function next() {}
+`
+  const result = getFunction({ path: "comment-block.js", content: js, store, sessionId: "comment-block", name: "tricky" })
+
+  assert.equal(result.found, true)
+  assert.match(result.text, /return 1/)
+  assert.doesNotMatch(result.text, /function next/)
+})
+
+test("getFunction ignores earlier property assignment with same name", () => {
+  const store = new AnchorStore()
+  const js = `function setup() {
+  obj.target = () => 1
+}
+function target() {
+  return 2
+}
+`
+  const result = getFunction({ path: "property.js", content: js, store, sessionId: "property", name: "target" })
+
+  assert.equal(result.found, true)
+  assert.match(result.text, /function target/)
+  assert.doesNotMatch(result.text, /obj\.target/)
+})
+
+test("getFunction handles Python multiline signature with trailing comment", () => {
+  const store = new AnchorStore()
+  const py = `def target(
+    a,
+):  # comment
+    return a
+
+def other():
+    return 0
+`
+  const result = getFunction({ path: "py-comment.py", content: py, store, sessionId: "py-comment", name: "target" })
+
+  assert.equal(result.found, true)
+  assert.match(result.text, /return a/)
+  assert.doesNotMatch(result.text, /def other/)
+})
