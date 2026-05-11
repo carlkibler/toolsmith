@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.31 — 2026-05-11
+
+- Harden `get_function`/`symbol_replace` symbol range detection for JavaScript and TypeScript functions with destructured parameters, including multiline destructuring before the body brace.
+- Keep anchored tool responses quiet by default for MCP and Pi.dev adapters while preserving verbose anchored content opt-in.
+- Strengthen anchored edit, workspace, adapter, and regex edge-case handling from multi-model hardening reviews.
+
 ## 0.1.26 — 2026-05-08
 
 - Simplify install/update completion messaging to concise follow-up lines.
