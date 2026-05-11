@@ -8,6 +8,36 @@ function toolsFor(cwd) {
   return workspaces.get(key)
 }
 
+function verboseOutput() {
+  return /^(1|true|yes|on|debug|verbose)$/i.test(String(process.env.TOOLSMITH_VERBOSE || process.env.TOOLSMITH_DEBUG || ""))
+}
+
+function toolContent(result, summary) {
+  return [{ type: "text", text: verboseOutput() ? result.text : summary }]
+}
+
+function readSummary(result) {
+  const lineCount = result.lineCount || result.endLine
+  const range = result.startLine === 1 && result.endLine === lineCount
+    ? `${lineCount} line(s)`
+    : `lines ${result.startLine}–${result.endLine} of ${lineCount}`
+  return `Anchored read ${result.path} (${range}, ${result.anchors?.length || 0} anchor(s), hash ${result.fileHash}). Full anchored content is in details.text.`
+}
+
+function searchSummary(result) {
+  return `Anchored search ${result.path} matched ${result.matches?.length || 0} line(s) for ${JSON.stringify(result.query)} (hash ${result.fileHash}). Full anchored snippets are in details.text.`
+}
+
+function skeletonSummary(result) {
+  return `File skeleton ${result.path}: ${result.entries?.length || 0} entr${result.entries?.length === 1 ? "y" : "ies"} (hash ${result.fileHash}). Full anchored skeleton is in details.text.`
+}
+
+function functionSummary(result) {
+  return result.found
+    ? `Function ${result.name} in ${result.path}: lines ${result.startLine}–${result.endLine}${result.truncated ? "+" : ""} (hash ${result.fileHash}). Full anchored source is in details.text.`
+    : `Function ${result.name} not found in ${result.path} (hash ${result.fileHash}).`
+}
+
 const editSchema = {
   type: "object",
   properties: {
@@ -57,7 +87,7 @@ export default function toolsmithPiExtension(pi) {
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await toolsFor(ctx.cwd).read(params)
-      return { content: [{ type: "text", text: result.text }], details: result }
+      return { content: toolContent(result, readSummary(result)), details: result }
     },
   })
 
@@ -87,7 +117,7 @@ export default function toolsmithPiExtension(pi) {
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await toolsFor(ctx.cwd).search(params)
-      return { content: [{ type: "text", text: result.text }], details: result }
+      return { content: toolContent(result, searchSummary(result)), details: result }
     },
   })
 
@@ -113,7 +143,7 @@ export default function toolsmithPiExtension(pi) {
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await toolsFor(ctx.cwd).skeleton(params)
-      return { content: [{ type: "text", text: result.text }], details: result }
+      return { content: toolContent(result, skeletonSummary(result)), details: result }
     },
   })
 
@@ -141,7 +171,7 @@ export default function toolsmithPiExtension(pi) {
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await toolsFor(ctx.cwd).getFunction(params)
-      return { content: [{ type: "text", text: result.text }], details: result, isError: result.found === false }
+      return { content: toolContent(result, functionSummary(result)), details: result, isError: result.found === false }
     },
   })
 

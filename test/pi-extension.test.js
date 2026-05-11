@@ -24,16 +24,19 @@ test("Pi extension registers anchored tools and executes them", async () => {
   const ctx = { cwd }
 
   const skeleton = await registered.get("pi_file_skeleton").execute("call-skeleton", { path: "code.js", sessionId: "pi" }, undefined, undefined, ctx)
-  assert.match(skeleton.content[0].text, /§function demo/)
+  assert.doesNotMatch(skeleton.content[0].text, /§function demo/)
+  assert.match(skeleton.details.text, /§function demo/)
   const fn = await registered.get("pi_get_function").execute("call-function", { path: "code.js", name: "demo", sessionId: "pi" }, undefined, undefined, ctx)
   assert.equal(fn.isError, false)
-  assert.match(fn.content[0].text, /§  return 1/)
+  assert.doesNotMatch(fn.content[0].text, /§  return 1/)
+  assert.match(fn.details.text, /§  return 1/)
   const sym = await registered.get("pi_symbol_replace").execute("call-symbol", { path: "code.js", name: "demo", search: "return 1", replacement: "return 2", sessionId: "pi" }, undefined, undefined, ctx)
   assert.equal(sym.isError, false)
   assert.match(await fs.readFile(path.join(cwd, "code.js"), "utf8"), /return 2/)
 
   const search = await registered.get("pi_anchored_search").execute("call-1", { path: "demo.txt", query: "dog", sessionId: "pi", contextLines: 0 }, undefined, undefined, ctx)
-  const dogLine = search.content[0].text.split("\n").find((line) => line.endsWith("§dog"))
+  assert.doesNotMatch(search.content[0].text, /§dog/)
+  const dogLine = search.details.text.split("\n").find((line) => line.endsWith("§dog"))
   assert(dogLine)
 
   const edit = await registered.get("pi_anchored_edit").execute("call-2", {
@@ -47,6 +50,24 @@ test("Pi extension registers anchored tools and executes them", async () => {
   assert.equal(await fs.readFile(path.join(cwd, "demo.txt"), "utf8"), "cat\nDOG\neel")
 })
 
+test("Pi extension verbose mode returns anchored text in content", async () => {
+  const registered = new Map()
+  extension({ registerTool(tool) { registered.set(tool.name, tool) } })
+
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "demo.txt"), "alpha\nbeta", "utf8")
+  const previous = process.env.TOOLSMITH_VERBOSE
+  process.env.TOOLSMITH_VERBOSE = "1"
+  try {
+    const read = await registered.get("pi_anchored_read").execute("call-verbose", { path: "demo.txt", sessionId: "pi-verbose" }, undefined, undefined, { cwd })
+    assert.match(read.content[0].text, /§alpha/)
+    assert.match(read.details.text, /§alpha/)
+  } finally {
+    if (previous === undefined) delete process.env.TOOLSMITH_VERBOSE
+    else process.env.TOOLSMITH_VERBOSE = previous
+  }
+})
+
 test("Pi extension multi-file tool validates before writing", async () => {
   const registered = new Map()
   extension({ registerTool(tool) { registered.set(tool.name, tool) } })
@@ -58,8 +79,8 @@ test("Pi extension multi-file tool validates before writing", async () => {
 
   const leftRead = await registered.get("pi_anchored_read").execute("call-1", { path: "left.txt", sessionId: "pi-many" }, undefined, undefined, ctx)
   const rightRead = await registered.get("pi_anchored_read").execute("call-2", { path: "right.txt", sessionId: "pi-many" }, undefined, undefined, ctx)
-  const leftLine = leftRead.content[0].text.split("\n").find((line) => line.endsWith("§left"))
-  const staleRightLine = rightRead.content[0].text.split("\n").find((line) => line.endsWith("§right")).replace("right", "stale")
+  const leftLine = leftRead.details.text.split("\n").find((line) => line.endsWith("§left"))
+  const staleRightLine = rightRead.details.text.split("\n").find((line) => line.endsWith("§right")).replace("right", "stale")
 
   const result = await registered.get("pi_anchored_edit_many").execute("call-3", {
     sessionId: "pi-many",
