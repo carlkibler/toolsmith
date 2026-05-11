@@ -140,8 +140,10 @@ esac
     const calls = await fs.readFile(callLog, "utf8")
     assert.match(calls, /remove npm:@carlkibler\/toolsmith/)
     assert.match(calls, new RegExp(`install ${path.resolve(".").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`))
-    assert.match(result.stdout || "", /package drift detected/)
-    assert.match(result.stdout || "", /removed stale package/)
+    const piLines = (result.stdout || "").split("\n").filter((line) => line.includes("Pi.dev:"))
+    assert.equal(piLines.length, 1)
+    assert.match(piLines[0], /refreshed/)
+    assert.match(piLines[0], /removed 1 stale package entry/)
   } finally {
     await fs.rm(home, { recursive: true, force: true })
   }
@@ -176,7 +178,10 @@ esac
     assert.match(calls, /remove \.\.\/\.\.\/projects\/toolsmith/)
     assert.equal(updated.packages.includes("../../projects/toolsmith"), false)
     assert.deepEqual(updated.packages, ["npm:pi-web-access"])
-    assert.match(result.stdout || "", /pruned stale package entries/)
+    const piLines = (result.stdout || "").split("\n").filter((line) => line.includes("Pi.dev:"))
+    assert.equal(piLines.length, 1)
+    assert.match(piLines[0], /refreshed/)
+    assert.match(piLines[0], /pruned 1 stale package entry/)
   } finally {
     await fs.rm(home, { recursive: true, force: true })
   }
