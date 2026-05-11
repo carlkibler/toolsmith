@@ -19,6 +19,40 @@ const { version } = JSON.parse(readFileSync(path.join(__dirname, "..", "package.
 
 const workspace = new WorkspaceTools({ cwd: process.env.TOOLSMITH_CWD || process.cwd() })
 const usageLogger = new UsageLogger({ cwd: workspace.cwd, version })
+
+function verboseOutput() {
+  return /^(1|true|yes|on|debug|verbose)$/i.test(String(process.env.TOOLSMITH_VERBOSE || process.env.TOOLSMITH_DEBUG || ""))
+}
+
+function toolContent(result, summary) {
+  return [{ type: "text", text: verboseOutput() ? result.text : summary }]
+}
+
+function readSummary(result) {
+  const lineCount = result.lineCount || result.endLine
+  const range = result.startLine === 1 && result.endLine === lineCount
+    ? `${lineCount} line(s)`
+    : `lines ${result.startLine}–${result.endLine} of ${lineCount}`
+  return `Anchored read ${result.path} (${range}, ${result.anchors?.length || 0} anchor(s), hash ${result.fileHash}). Full anchored content is in structuredContent.text.`
+}
+
+function searchSummary(result) {
+  return `Anchored search ${result.path} matched ${result.matches?.length || 0} line(s) for ${JSON.stringify(result.query)} (hash ${result.fileHash}). Full anchored snippets are in structuredContent.text.`
+}
+
+function findSummary(result) {
+  return `Find and anchor scanned ${result.scannedFiles || 0} file(s), matched ${result.matches?.length || 0} line(s) in ${result.matchedFiles || 0} file(s) for ${JSON.stringify(result.query)}. Full anchored snippets are in structuredContent.text.`
+}
+
+function skeletonSummary(result) {
+  return `File skeleton ${result.path}: ${result.entries?.length || 0} entr${result.entries?.length === 1 ? "y" : "ies"} (hash ${result.fileHash}). Full anchored skeleton is in structuredContent.text.`
+}
+
+function functionSummary(result) {
+  return result.found
+    ? `Function ${result.name} in ${result.path}: lines ${result.startLine}–${result.endLine}${result.truncated ? "+" : ""} (hash ${result.fileHash}). Full anchored source is in structuredContent.text.`
+    : `Function ${result.name} not found in ${result.path} (hash ${result.fileHash}).`
+}
 if (process.env.TOOLSMITH_USAGE_LOG === "0") process.stderr.write("[toolsmith-mcp] usage logging disabled (TOOLSMITH_USAGE_LOG=0)\n")
 
 // Minimal MCP stdio server — newline-delimited JSON-RPC 2.0
@@ -110,7 +144,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.read(args)
-    return { content: [{ type: "text", text: result.text }], structuredContent: result }
+    return { content: toolContent(result, readSummary(result)), structuredContent: result }
   },
 )
 
@@ -136,7 +170,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.search(args)
-    return { content: [{ type: "text", text: result.text }], structuredContent: result }
+    return { content: toolContent(result, searchSummary(result)), structuredContent: result }
   },
 )
 
@@ -165,7 +199,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.findAndAnchor(args)
-    return { content: [{ type: "text", text: result.text }], structuredContent: result }
+    return { content: toolContent(result, findSummary(result)), structuredContent: result }
   },
 )
 
@@ -188,7 +222,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.skeleton(args)
-    return { content: [{ type: "text", text: result.text }], structuredContent: result }
+    return { content: toolContent(result, skeletonSummary(result)), structuredContent: result }
   },
 )
 
@@ -212,7 +246,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.getFunction(args)
-    return { content: [{ type: "text", text: result.text }], structuredContent: result, isError: false }
+    return { content: toolContent(result, functionSummary(result)), structuredContent: result, isError: false }
   },
 )
 

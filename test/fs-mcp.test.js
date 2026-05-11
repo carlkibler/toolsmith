@@ -123,11 +123,13 @@ test("MCP server lists and calls anchored tools", async () => {
 
     await fs.writeFile(path.join(cwd, "code.js"), "function demo() {\n  return 1\n}\n", "utf8")
     const skeleton = await client.callTool("file_skeleton", { path: "code.js", sessionId: "mcp" })
-    assert.match(skeleton.content[0].text, /§function demo/)
+    assert.doesNotMatch(skeleton.content[0].text, /§function demo/)
+    assert.match(skeleton.structuredContent.text, /§function demo/)
 
     const fn = await client.callTool("get_function", { path: "code.js", name: "demo", sessionId: "mcp" })
     assert.equal(fn.isError, false)
-    assert.match(fn.content[0].text, /§  return 1/)
+    assert.doesNotMatch(fn.content[0].text, /§  return 1/)
+    assert.match(fn.structuredContent.text, /§  return 1/)
 
     const sym = await client.callTool("symbol_replace", { path: "code.js", name: "demo", search: "return 1", replacement: "return 2", sessionId: "mcp" })
     assert.equal(sym.isError, false)
@@ -135,15 +137,18 @@ test("MCP server lists and calls anchored tools", async () => {
 
     const found = await client.callTool("find_and_anchor", { path: ".", query: "return 2", glob: "*.js", sessionId: "mcp-find", maxMatches: 3 })
     assert.notEqual(found.isError, true)
-    assert.match(found.content[0].text, /\[Find: return 2\]/)
-    assert.match(found.content[0].text, /code\.js/)
-    assert.match(found.content[0].text, /§  return 2/)
+    assert.doesNotMatch(found.content[0].text, /§  return 2/)
+    assert.match(found.structuredContent.text, /\[Find: return 2\]/)
+    assert.match(found.structuredContent.text, /code\.js/)
+    assert.match(found.structuredContent.text, /§  return 2/)
 
     const search = await client.callTool("anchored_search", { path: "demo.txt", query: "green", sessionId: "mcp", contextLines: 0 })
-    assert.match(search.content[0].text, /§green/)
+    assert.doesNotMatch(search.content[0].text, /§green/)
+    assert.match(search.structuredContent.text, /§green/)
 
     const read = await client.callTool("anchored_read", { path: "demo.txt", sessionId: "mcp" })
-    const readText = read.content[0].text
+    assert.doesNotMatch(read.content[0].text, /§green/)
+    const readText = read.structuredContent.text
     assert.match(readText, /§green/)
     const greenLine = readText.split("\n").find((line) => line.endsWith("§green"))
 
@@ -162,6 +167,20 @@ test("MCP server lists and calls anchored tools", async () => {
     assert(usage.some((r) => r.event === "tool_call" && r.tool === "find_and_anchor"))
     assert(usage.some((r) => r.event === "tool_call" && r.tool === "anchored_edit" && r.result.changed === true))
     assert(usage.every((r) => r.schema === "toolsmith.usage.v1"))
+  } finally {
+    await client.close()
+  }
+})
+
+test("MCP verbose mode returns anchored text in content", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "demo.txt"), "alpha\nbeta", "utf8")
+
+  const client = await McpTestClient.start(path.resolve("bin/toolsmith-mcp.js"), cwd, { TOOLSMITH_VERBOSE: "1" })
+  try {
+    const read = await client.callTool("anchored_read", { path: "demo.txt", sessionId: "verbose" })
+    assert.match(read.content[0].text, /§alpha/)
+    assert.match(read.structuredContent.text, /§alpha/)
   } finally {
     await client.close()
   }
@@ -240,8 +259,8 @@ test("MCP anchored_edit_many applies cross-file batch", async () => {
 
     const oneRead = await client.callTool("anchored_read", { path: "one.txt", sessionId: "many-mcp" })
     const twoRead = await client.callTool("anchored_read", { path: "two.txt", sessionId: "many-mcp" })
-    const aLine = oneRead.content[0].text.split("\n").find((line) => line.endsWith("§a"))
-    const dLine = twoRead.content[0].text.split("\n").find((line) => line.endsWith("§d"))
+    const aLine = oneRead.structuredContent.text.split("\n").find((line) => line.endsWith("§a"))
+    const dLine = twoRead.structuredContent.text.split("\n").find((line) => line.endsWith("§d"))
 
     const result = await client.callTool("anchored_edit_many", {
       sessionId: "many-mcp",
