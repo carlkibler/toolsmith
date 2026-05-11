@@ -1,5 +1,10 @@
+import { readFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
+import path from "node:path"
 import { WorkspaceTools } from "../src/fs-tools.js"
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const { version } = JSON.parse(readFileSync(path.join(__dirname, "..", "package.json"), "utf8"))
 const workspaces = new Map()
 
 function toolsFor(cwd) {
@@ -9,7 +14,11 @@ function toolsFor(cwd) {
 }
 
 function verboseOutput() {
-  return /^(1|true|yes|on|debug|verbose)$/i.test(String(process.env.TOOLSMITH_VERBOSE || process.env.TOOLSMITH_DEBUG || ""))
+  return envEnabled(process.env.TOOLSMITH_VERBOSE) || envEnabled(process.env.TOOLSMITH_DEBUG)
+}
+
+function envEnabled(value) {
+  return /^(1|true|yes|on|debug|verbose)$/i.test(String(value || ""))
 }
 
 function toolContent(result, summary) {
@@ -86,7 +95,7 @@ export default function toolsmithPiExtension(pi) {
       required: ["path"],
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = await toolsFor(ctx.cwd).read(params)
+      const result = await toolsFor(ctx?.cwd).read(params)
       return { content: toolContent(result, readSummary(result)), details: result }
     },
   })
@@ -116,7 +125,7 @@ export default function toolsmithPiExtension(pi) {
       required: ["path", "query"],
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = await toolsFor(ctx.cwd).search(params)
+      const result = await toolsFor(ctx?.cwd).search(params)
       return { content: toolContent(result, searchSummary(result)), details: result }
     },
   })
@@ -142,7 +151,7 @@ export default function toolsmithPiExtension(pi) {
       required: ["path"],
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = await toolsFor(ctx.cwd).skeleton(params)
+      const result = await toolsFor(ctx?.cwd).skeleton(params)
       return { content: toolContent(result, skeletonSummary(result)), details: result }
     },
   })
@@ -170,7 +179,7 @@ export default function toolsmithPiExtension(pi) {
       required: ["path", "name"],
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = await toolsFor(ctx.cwd).getFunction(params)
+      const result = await toolsFor(ctx?.cwd).getFunction(params)
       return { content: toolContent(result, functionSummary(result)), details: result, isError: result.found === false }
     },
   })
@@ -202,11 +211,13 @@ export default function toolsmithPiExtension(pi) {
       required: ["path", "name", "search"],
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = await toolsFor(ctx.cwd).symbolReplace(params)
+      const result = await toolsFor(ctx?.cwd).symbolReplace(params)
       const text = result.ok
         ? `${result.dryRun ? "Would replace" : "Replaced"} ${result.matches} match(es) in ${result.name} (${result.path}). ${result.beforeHash} -> ${result.afterHash}`
-        : `Symbol replace failed for ${params.path}:\n${result.errors.join("\n")}`
-      return { content: [{ type: "text", text }], details: result, isError: !result.ok }
+        : result.notFound
+          ? `No match in ${params.path}: ${result.errors.join("; ")} — try pi_get_function to inspect the current source.`
+          : `Symbol replace failed for ${params.path}:\n${result.errors.join("\n")}`
+      return { content: [{ type: "text", text }], details: result, isError: !result.ok && !result.notFound }
     },
   })
 
@@ -233,7 +244,7 @@ export default function toolsmithPiExtension(pi) {
       required: ["path", "edits"],
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = await toolsFor(ctx.cwd).edit(params)
+      const result = await toolsFor(ctx?.cwd).edit(params)
       const text = result.ok
         ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}. ${result.beforeHash} -> ${result.afterHash}`
         : `Anchored edit failed for ${result.path}:\n${result.errors.join("\n")}`
@@ -275,7 +286,7 @@ export default function toolsmithPiExtension(pi) {
       required: ["files"],
     },
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      const result = await toolsFor(ctx.cwd).editMany(params)
+      const result = await toolsFor(ctx?.cwd).editMany(params)
       const edited = result.files.reduce((sum, file) => sum + (file.applied?.length || 0), 0)
       const text = result.ok
         ? `${result.dryRun ? "Would apply" : "Applied"} ${edited} anchored edit(s) across ${result.files.length} file(s).`
@@ -291,10 +302,10 @@ export default function toolsmithPiExtension(pi) {
     executionMode: "parallel",
     parameters: { type: "object", properties: {} },
     async execute(_toolCallId, _params, _signal, _onUpdate, ctx) {
-      const tools = toolsFor(ctx.cwd)
+      const tools = toolsFor(ctx?.cwd)
       return {
-        content: [{ type: "text", text: `toolsmith Pi extension ready in ${ctx.cwd} [workspace: ${tools.workspaceKey}]` }],
-        details: { cwd: ctx.cwd, workspaceKey: tools.workspaceKey, version: "0.1.0" },
+        content: [{ type: "text", text: `toolsmith Pi extension ready in ${ctx?.cwd || process.cwd()} [workspace: ${tools.workspaceKey}]` }],
+        details: { cwd: ctx?.cwd || process.cwd(), workspaceKey: tools.workspaceKey, version },
       }
     },
   })

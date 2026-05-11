@@ -68,6 +68,30 @@ test("Pi extension verbose mode returns anchored text in content", async () => {
   }
 })
 
+
+test("Pi extension status and tools tolerate missing ctx cwd", async () => {
+  const registered = new Map()
+  extension({ registerTool(tool) { registered.set(tool.name, tool) } })
+
+  const status = await registered.get("pi_anchored_status").execute("status")
+  assert.equal(status.details.cwd, process.cwd())
+  assert.match(status.details.version, /^0\.1\./)
+})
+
+test("Pi symbol_replace treats not-found as guidance, not a hard adapter error", async () => {
+  const registered = new Map()
+  extension({ registerTool(tool) { registered.set(tool.name, tool) } })
+
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "code.js"), "function demo() {\n  return 1\n}\n", "utf8")
+
+  const result = await registered.get("pi_symbol_replace").execute("missing", { path: "code.js", name: "demo", search: "return 9", replacement: "return 2" }, undefined, undefined, { cwd })
+
+  assert.equal(result.isError, false)
+  assert.equal(result.details.notFound, true)
+  assert.match(result.content[0].text, /pi_get_function/)
+})
+
 test("Pi extension multi-file tool validates before writing", async () => {
   const registered = new Map()
   extension({ registerTool(tool) { registered.set(tool.name, tool) } })

@@ -257,3 +257,73 @@ test("applyAnchoredEdits content-mismatch hint suppressed under TOOLSMITH_TERSE=
     else process.env.TOOLSMITH_TERSE = orig
   }
 })
+
+
+test("non-atomic overlapping edits validate without mutating content", () => {
+  const store = new AnchorStore()
+  const content = "a\nb\nc"
+  const read = readAnchored({ path: "overlap.txt", content, store, sessionId: "overlap" })
+  const b = anchoredLine(read, 1, "b")
+  const c = anchoredLine(read, 2, "c")
+
+  const result = applyAnchoredEdits({
+    path: "overlap.txt",
+    content,
+    store,
+    sessionId: "overlap",
+    atomic: false,
+    edits: [
+      { type: "replace", anchor: b, endAnchor: c, text: "BC" },
+      { type: "replace", anchor: c, endAnchor: c, text: "C" },
+    ],
+  })
+
+  assert.equal(result.ok, false)
+  assert.equal(result.content, content)
+  assert.match(result.errors.join("\n"), /edits overlap/)
+})
+
+test("same-position inserts preserve user order", () => {
+  const store = new AnchorStore()
+  const content = "a\nb"
+  const read = readAnchored({ path: "insert.txt", content, store, sessionId: "insert" })
+  const a = anchoredLine(read, 0, "a")
+
+  const result = applyAnchoredEdits({
+    path: "insert.txt",
+    content,
+    store,
+    sessionId: "insert",
+    edits: [
+      { type: "insert_after", anchor: a, text: "first" },
+      { type: "insert_after", anchor: a, text: "second" },
+    ],
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.content, "a\nfirst\nsecond\nb")
+})
+
+test("numeric replacement text is preserved instead of treated as empty", () => {
+  const store = new AnchorStore()
+  const content = "value"
+  const read = readAnchored({ path: "number.txt", content, store, sessionId: "number" })
+  const value = anchoredLine(read, 0, "value")
+
+  const result = applyAnchoredEdits({
+    path: "number.txt",
+    content,
+    store,
+    sessionId: "number",
+    edits: [{ type: "replace", anchor: value, endAnchor: value, text: 0 }],
+  })
+
+  assert.equal(result.ok, true)
+  assert.equal(result.content, "0")
+})
+
+test("readAnchored rejects invalid ranges", () => {
+  const store = new AnchorStore()
+  assert.throws(() => readAnchored({ path: "range.txt", content: "a\nb", store, sessionId: "range", startLine: 3, endLine: 2 }), /startLine/)
+  assert.throws(() => readAnchored({ path: "range.txt", content: "a\nb", store, sessionId: "range", startLine: 0 }), /positive integer/)
+})

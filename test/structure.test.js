@@ -243,3 +243,28 @@ test("getFunction finds Go func by name", () => {
   assert.match(result.text, /func NewConfig/)
   assert.match(result.text, /Config{Port: port}/)
 })
+
+
+test("fileSkeleton marks truncation only when entries exceed maxLines", () => {
+  const store = new AnchorStore()
+  const exact = "function one() {}\nfunction two() {}"
+  const exactResult = fileSkeleton({ path: "exact.js", content: exact, store, sessionId: "skel-exact", maxLines: 2 })
+  assert.equal(exactResult.entries.length, 2)
+  assert.doesNotMatch(exactResult.text, /Skeleton Lines: 2\+/)
+
+  const extra = `${exact}\nfunction three() {}`
+  const extraResult = fileSkeleton({ path: "extra.js", content: extra, store, sessionId: "skel-extra", maxLines: 2 })
+  assert.equal(extraResult.entries.length, 2)
+  assert.match(extraResult.text, /Skeleton Lines: 2\+/)
+})
+
+test("getFunction ignores comment braces and multiline signatures", () => {
+  const store = new AnchorStore()
+  const tricky = `// function target() { return wrong }\nfunction target(\n  value\n) {\n  // } comment brace should not close\n  const text = "}"\n  return value\n}\nfunction next() {\n  return 2\n}`
+
+  const result = getFunction({ path: "tricky.js", content: tricky, store, sessionId: "tricky", name: "target" })
+  assert.equal(result.found, true)
+  assert.match(result.text, /function target/)
+  assert.match(result.text, /return value/)
+  assert.doesNotMatch(result.text, /function next/)
+})

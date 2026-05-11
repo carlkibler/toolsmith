@@ -2,7 +2,7 @@ import assert from "node:assert/strict"
 import fs from "node:fs/promises"
 import path from "node:path"
 import test from "node:test"
-import { execFile } from "node:child_process"
+import { execFile, spawn } from "node:child_process"
 import { promisify } from "node:util"
 import { WorkspaceTools } from "../src/fs-tools.js"
 import { McpTestClient, tempWorkspace } from "./helpers.js"
@@ -103,6 +103,26 @@ test("CLI find-and-anchor honors positional path with explicit query", async () 
   const { stdout } = await execFileAsync(process.execPath, [path.resolve("bin/toolsmith.js"), "find-and-anchor", "src", "--query", "needle", "--glob", "*.js"], { cwd })
   assert.match(stdout, /src\/hit\.js/)
   assert.doesNotMatch(stdout, /miss\.js/)
+})
+
+
+test("MCP usage-log disabled startup is quiet on stderr", async () => {
+  const cwd = await tempWorkspace()
+  const proc = spawn(process.execPath, [path.resolve("bin/toolsmith-mcp.js")], { cwd, env: { ...process.env, TOOLSMITH_USAGE_LOG: "0" }, stdio: ["pipe", "pipe", "pipe"] })
+  let stdout = ""
+  let stderr = ""
+  proc.stdout.setEncoding("utf8")
+  proc.stderr.setEncoding("utf8")
+  proc.stdout.on("data", (chunk) => { stdout += chunk })
+  proc.stderr.on("data", (chunk) => { stderr += chunk })
+  proc.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", clientInfo: { name: "test", version: "0" }, capabilities: {} } }) + "\n")
+  proc.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "ping", params: {} }) + "\n")
+  proc.stdin.end()
+  await new Promise((resolve) => proc.on("close", resolve))
+
+  assert.equal(stderr, "")
+  assert.match(stdout, /"id":1/)
+  assert.match(stdout, /"id":2/)
 })
 
 test("MCP server lists and calls anchored tools", async () => {
@@ -208,6 +228,51 @@ test("WorkspaceTools editMany validates all files before writing any file", asyn
   assert.equal(result.ok, false)
   assert.equal(await fs.readFile(path.join(cwd, "one.txt"), "utf8"), "a\nb")
   assert.equal(await fs.readFile(path.join(cwd, "two.txt"), "utf8"), "c\nd")
+})
+
+
+test("WorkspaceTools editMany rejects duplicate file entries", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "same.txt"), "a\nb", "utf8")
+  const tools = new WorkspaceTools({ cwd })
+  const read = await tools.read({ path: "same.txt", sessionId: "dup" })
+  const aLine = `${read.anchors[0]}§a`
+  const bLine = `${read.anchors[1]}§b`
+
+  const result = await tools.editMany({
+    sessionId: "dup",
+    files: [
+      { path: "same.txt", edits: [{ type: "replace", anchor: aLine, endAnchor: aLine, text: "A" }] },
+      { path: "./same.txt", edits: [{ type: "replace", anchor: bLine, endAnchor: bLine, text: "B" }] },
+    ],
+  })
+
+  assert.equal(result.ok, false)
+  assert.match(result.errors.join("\n"), /duplicate file entry/)
+  assert.equal(await fs.readFile(path.join(cwd, "same.txt"), "utf8"), "a\nb")
+})
+
+test("WorkspaceTools findAndAnchor surfaces regex errors", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "demo.txt"), "aaaaaaaaaaaa", "utf8")
+  const tools = new WorkspaceTools({ cwd })
+
+  const result = await tools.findAndAnchor({ path: ".", query: "(a+)+$", regex: true })
+
+  assert.match(result.error, /backtrack/)
+  assert.match(result.text, /error:/)
+})
+
+test("WorkspaceTools findAndAnchor reports candidate truncation", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "one.txt"), "needle one", "utf8")
+  await fs.writeFile(path.join(cwd, "two.txt"), "needle two", "utf8")
+  const tools = new WorkspaceTools({ cwd })
+
+  const result = await tools.findAndAnchor({ path: ".", query: "needle", maxFiles: 1 })
+
+  assert.equal(result.truncated, true)
+  assert.match(result.text, /Files scanned: 1\/1\+/)
 })
 
 test("WorkspaceTools dryRun validates without writing", async () => {

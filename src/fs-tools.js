@@ -157,6 +157,7 @@ export class WorkspaceTools {
       }
     }))
 
+    const seenPaths = new Set()
     for (const entry of reads) {
       if (entry.error) {
         const message = entry.error instanceof Error ? entry.error.message : String(entry.error)
@@ -164,6 +165,11 @@ export class WorkspaceTools {
         continue
       }
       const { file, absolute, relative, before } = entry
+      if (seenPaths.has(absolute)) {
+        errors.push(`${relative}: duplicate file entry; combine edits for the same file into one entry`)
+        continue
+      }
+      seenPaths.add(absolute)
       const result = applyAnchoredEdits({
         path: relative,
         content: before,
@@ -243,16 +249,15 @@ export class WorkspaceTools {
   }
 
   async #openAndWrite(absolute, content) {
-    if (content.length > this.maxBytes) throw new Error(`edit result exceeds size limit (${content.length} bytes > ${this.maxBytes}); split into smaller edits`)
-    const writeFlags = fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_TRUNC | O_NOFOLLOW
+    const contentBytes = Buffer.byteLength(content, "utf8")
+    if (contentBytes > this.maxBytes) throw new Error(`edit result exceeds size limit (${contentBytes} bytes > ${this.maxBytes}); split into smaller edits`)
+    const writeFlags = fsConstants.O_WRONLY | fsConstants.O_TRUNC | O_NOFOLLOW
     let fd
     try {
       fd = await fs.open(absolute, writeFlags)
     } catch (e) {
       if (e.code === "ELOOP" && O_NOFOLLOW !== 0) {
-        // Symlink target already verified by assertContained — re-verify and write normally
-        await this.#assertContained(absolute)
-        fd = await fs.open(absolute, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_TRUNC)
+        throw new Error(`${path.relative(this.cwd, absolute)}: refusing to write through symlink`)
       } else {
         throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
       }

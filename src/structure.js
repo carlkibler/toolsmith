@@ -8,15 +8,17 @@ export function fileSkeleton({ path, content, store, sessionId, workspaceKey, ma
   const anchors = store.reconcile(path, content, { sessionId, workspaceKey })
   const entries = []
 
-  for (let index = 0; index < lines.length && entries.length < maxLines; index += 1) {
+  for (let index = 0; index < lines.length && entries.length <= maxLines; index += 1) {
     const line = lines[index]
     if (isSkeletonLine(line)) {
       entries.push({ line: index + 1, anchor: anchors[index], text: line, kind: classifyLine(line) })
     }
   }
 
-  const text = formatSkeletonText({ path, content, workspaceKey, entries, truncated: entries.length >= maxLines })
-  return { path, fileHash: contentHash(content), entries, maxLines, text, telemetry: makeTelemetry({ operation: "file_skeleton", fullContent: content, requestPayload: { path, sessionId, maxLines }, responseText: text, anchors: entries.map((entry) => entry.anchor) }) }
+  const truncated = entries.length > maxLines
+  const visibleEntries = truncated ? entries.slice(0, maxLines) : entries
+  const text = formatSkeletonText({ path, content, workspaceKey, entries: visibleEntries, truncated })
+  return { path, fileHash: contentHash(content), entries: visibleEntries, maxLines, text, telemetry: makeTelemetry({ operation: "file_skeleton", fullContent: content, requestPayload: { path, sessionId, maxLines }, responseText: text, anchors: visibleEntries.map((entry) => entry.anchor) }) }
 }
 
 export function getFunction({ path, content, store, sessionId, workspaceKey, name, contextLines = 0, maxLines = 400 }) {
@@ -97,23 +99,30 @@ function findSymbolStart(lines, name) {
     new RegExp(`\\b(?:pub(?:\\s*\\([^)]*\\))?\\s+)?(?:async\\s+)?fn\\s+${e}\\b`),
     new RegExp(`\\bfunc\\s+${e}\\b`),
   ]
-  return lines.findIndex((line) => patterns.some((pattern) => pattern.test(line)))
+  return lines.findIndex((line) => !isCommentOnly(line) && patterns.some((pattern) => pattern.test(line)))
 }
 
 function findSymbolEnd(lines, startIndex) {
-  if (hasBrace(lines[startIndex])) return findBraceEnd(lines, startIndex)
+  const braceIndex = findOpeningBraceLine(lines, startIndex)
+  if (braceIndex !== -1) return findBraceEnd(lines, braceIndex)
   return findIndentEnd(lines, startIndex)
 }
 
-function hasBrace(line) {
-  return line.includes("{")
+function findOpeningBraceLine(lines, startIndex) {
+  const startIndent = indentation(lines[startIndex])
+  for (let index = startIndex; index < Math.min(lines.length, startIndex + 20); index += 1) {
+    const line = stripCodeNoise(lines[index])
+    if (line.includes("{")) return index
+    if (index > startIndex && line.trim() && indentation(line) <= startIndent && isSkeletonLine(line)) break
+  }
+  return -1
 }
 
 function findBraceEnd(lines, startIndex) {
   let depth = 0
   let seenOpen = false
   for (let index = startIndex; index < lines.length; index += 1) {
-    const line = stripQuoted(lines[index])
+    const line = stripCodeNoise(lines[index])
     for (const char of line) {
       if (char === "{") {
         depth += 1
@@ -138,6 +147,19 @@ function findIndentEnd(lines, startIndex) {
 
 function indentation(line) {
   return line.match(/^\s*/u)[0].length
+}
+
+function isCommentOnly(line) {
+  const t = line.trim()
+  return t.startsWith("//") || t.startsWith("#") || t.startsWith("--") || t.startsWith("/*") || t.startsWith("*")
+}
+
+function stripCodeNoise(line) {
+  return stripLineComments(stripQuoted(line))
+}
+
+function stripLineComments(line) {
+  return line.replace(/\/\*.*?\*\//gu, "").replace(/\/\/.*$/u, "")
 }
 
 function stripQuoted(line) {

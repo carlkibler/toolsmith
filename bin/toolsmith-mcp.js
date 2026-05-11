@@ -21,7 +21,11 @@ const workspace = new WorkspaceTools({ cwd: process.env.TOOLSMITH_CWD || process
 const usageLogger = new UsageLogger({ cwd: workspace.cwd, version })
 
 function verboseOutput() {
-  return /^(1|true|yes|on|debug|verbose)$/i.test(String(process.env.TOOLSMITH_VERBOSE || process.env.TOOLSMITH_DEBUG || ""))
+  return envEnabled(process.env.TOOLSMITH_VERBOSE) || envEnabled(process.env.TOOLSMITH_DEBUG)
+}
+
+function envEnabled(value) {
+  return /^(1|true|yes|on|debug|verbose)$/i.test(String(value || ""))
 }
 
 function toolContent(result, summary) {
@@ -53,7 +57,7 @@ function functionSummary(result) {
     ? `Function ${result.name} in ${result.path}: lines ${result.startLine}–${result.endLine}${result.truncated ? "+" : ""} (hash ${result.fileHash}). Full anchored source is in structuredContent.text.`
     : `Function ${result.name} not found in ${result.path} (hash ${result.fileHash}).`
 }
-if (process.env.TOOLSMITH_USAGE_LOG === "0") process.stderr.write("[toolsmith-mcp] usage logging disabled (TOOLSMITH_USAGE_LOG=0)\n")
+if (process.env.TOOLSMITH_USAGE_LOG === "0" && verboseOutput()) process.stderr.write("[toolsmith-mcp] usage logging disabled (TOOLSMITH_USAGE_LOG=0)\n")
 
 // Minimal MCP stdio server — newline-delimited JSON-RPC 2.0
 

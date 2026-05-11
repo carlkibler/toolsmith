@@ -180,7 +180,7 @@ export function splitAnchorReference(reference) {
 
 export function stripAnchors(text) {
   const delimiter = ANCHOR_DELIMITER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-  return String(text || "").replace(new RegExp(`\\bA[a-zA-Z0-9]+${delimiter}`, "g"), "")
+  return String(text ?? "").replace(new RegExp(`\\bA[a-zA-Z0-9]+${delimiter}`, "g"), "")
 }
 
 function sameHashes(left, right) {

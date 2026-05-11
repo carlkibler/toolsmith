@@ -33,7 +33,7 @@ export function applyAnchoredEdits({ path, content, store, sessionId, workspaceK
   const overlapError = findOverlap(resolved)
   if (overlapError) errors.push(overlapError)
 
-  if (errors.length > 0 && atomic) {
+  if (overlapError || (errors.length > 0 && atomic)) {
     const validatedEdits = resolved.filter((e) => !e.invalid).map((e) => e.editIndex)
     return { ok: false, content, errors, warnings, applied: [], validatedEdits }
   }
@@ -42,7 +42,7 @@ export function applyAnchoredEdits({ path, content, store, sessionId, workspaceK
   const nextLines = [...lines]
   const applied = []
 
-  for (const edit of [...usable].sort((left, right) => right.spliceIndex - left.spliceIndex)) {
+  for (const edit of [...usable].sort((left, right) => right.spliceIndex - left.spliceIndex || right.editIndex - left.editIndex)) {
     nextLines.splice(edit.spliceIndex, edit.deleteCount, ...edit.replacementLines)
     applied.push({ type: edit.type, anchor: edit.anchor, endAnchor: edit.endAnchor, linesAdded: edit.replacementLines.length, linesDeleted: edit.deleteCount })
   }
@@ -69,7 +69,7 @@ function resolveEdit(edit, editIndex, lines, anchors) {
     if (end.index < start.index) return fail(editIndex, "endAnchor must not precede anchor")
   }
 
-  const replacementText = stripAnchors(edit.text || "")
+  const replacementText = stripAnchors(edit.text ?? "")
   const replacementLines = replacementText.length === 0 ? [] : replacementText.split(/\r?\n/)
 
   if (type === "insert_after") {

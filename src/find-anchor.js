@@ -29,15 +29,17 @@ export async function findAndAnchor({
   const isDirectory = stats.isDirectory()
   const parsedPerFileLimit = Number(maxMatchesPerFile)
   const perFileLimit = Number.isFinite(parsedPerFileLimit) && parsedPerFileLimit > 0 ? parsedPerFileLimit : Math.max(1, Number(maxMatches) || 20)
-  const files = isDirectory
+  const collection = isDirectory
     ? await collectFiles({ rootAbsolute, rootRelative, listDir, statPath, glob, maxFiles })
-    : [{ absolute: rootAbsolute, relative: rootRelative }]
+    : { files: [{ absolute: rootAbsolute, relative: rootRelative }], truncatedCandidates: false }
+  const files = collection.files
 
   const matches = []
   const sections = []
   let scannedFiles = 0
   let scannedBytes = 0
-  let truncated = false
+  let truncated = collection.truncatedCandidates
+  let searchError = null
 
   for (const file of files) {
     if (matches.length >= maxMatches) { truncated = true; break }
@@ -61,6 +63,11 @@ export async function findAndAnchor({
       contextLines,
       maxMatches: isDirectory ? Math.min(maxMatches - matches.length, perFileLimit) : maxMatches - matches.length,
     })
+    if (result.error) {
+      searchError = `${file.relative}: ${result.error}`
+      truncated = true
+      break
+    }
     if (result.matches.length === 0) continue
     sections.push(result.text)
     for (const match of result.matches) matches.push({ ...match, path: file.relative, fileHash: contentHash(content) })
@@ -68,7 +75,8 @@ export async function findAndAnchor({
 
   const responseBody = sections.length ? sections.join("\n\n") : "(no matches)"
   const workspaceTag = workspaceKey ? `[Workspace: ${workspaceKey}] ` : ""
-  const text = `${workspaceTag}[Find: ${query}] [Files scanned: ${scannedFiles}/${files.length}${truncated ? "+" : ""}] [Files matched: ${sections.length}] [Matches: ${matches.length}${truncated ? "+" : ""}]\n${responseBody}`
+  const errorNote = searchError ? ` [Error: ${searchError}]` : ""
+  const text = `${workspaceTag}[Find: ${query}] [Files scanned: ${scannedFiles}/${files.length}${truncated ? "+" : ""}] [Files matched: ${sections.length}] [Matches: ${matches.length}${truncated ? "+" : ""}]${errorNote}\n${searchError ? `(error: ${searchError})` : responseBody}`
   return {
     path: rootRelative,
     query,
@@ -84,6 +92,7 @@ export async function findAndAnchor({
     matchedFiles: sections.length,
     matches,
     truncated,
+    error: searchError,
     text,
     telemetry: telemetry({ operation: "find_and_anchor", scannedBytes, requestPayload: { path: rootRelative, query, regex, caseSensitive, contextLines, maxMatches, maxFiles, maxMatchesPerFile: perFileLimit, glob, sessionId }, responseText: text, anchorCount: matches.length }),
   }
@@ -92,12 +101,13 @@ export async function findAndAnchor({
 async function collectFiles({ rootAbsolute, rootRelative, listDir, statPath, glob, maxFiles }) {
   const files = []
   const matcher = glob ? globMatcher(glob) : null
+  let truncatedCandidates = false
 
   async function walk(abs, rel) {
-    if (files.length >= maxFiles) return
+    if (files.length >= maxFiles) { truncatedCandidates = true; return }
     const entries = await listDir(abs)
     for (const entry of entries) {
-      if (files.length >= maxFiles) return
+      if (files.length >= maxFiles) { truncatedCandidates = true; return }
       if (entry.isDirectory()) {
         if (!SKIP_DIRS.has(entry.name)) await walk(path.join(abs, entry.name), rel ? path.join(rel, entry.name) : entry.name)
       } else if (entry.isFile()) {
@@ -114,7 +124,7 @@ async function collectFiles({ rootAbsolute, rootRelative, listDir, statPath, glo
   }
 
   await walk(rootAbsolute, rootRelative === "." ? "" : "")
-  return files
+  return { files, truncatedCandidates }
 }
 
 function globMatcher(glob) {
