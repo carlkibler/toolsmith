@@ -18,11 +18,16 @@ export function searchAnchored({ path, content, store, sessionId, workspaceKey, 
     return { path, fileHash: contentHash(content), query, regex, caseSensitive, contextLines, maxMatches, matches: [], text, error: e.message, telemetry: makeTelemetry({ operation: "anchored_search", fullContent: content, requestPayload: { path, sessionId, query, regex, caseSensitive, contextLines, maxMatches }, responseText: text, anchors: [] }) }
   }
   const matches = []
+  const matchedAnchors = []
 
-  for (let index = 0; index < lines.length && matches.length < maxMatches; index += 1) {
+  let totalMatches = 0
+  for (let index = 0; index < lines.length; index += 1) {
     if (!matcher(lines[index])) continue
+    totalMatches += 1
+    if (matches.length >= maxMatches) continue
     const start = Math.max(0, index - contextLines)
     const end = Math.min(lines.length, index + contextLines + 1)
+    matchedAnchors.push(anchors[index])
     matches.push({
       line: index + 1,
       anchor: anchors[index],
@@ -33,8 +38,26 @@ export function searchAnchored({ path, content, store, sessionId, workspaceKey, 
     })
   }
 
-  const text = formatSearchText({ path, content, workspaceKey, matches, truncated: countMatches(lines, matcher) > matches.length })
-  return { path, fileHash: contentHash(content), query, regex, caseSensitive, contextLines, maxMatches, matches, text, telemetry: makeTelemetry({ operation: "anchored_search", fullContent: content, requestPayload: { path, sessionId, query, regex, caseSensitive, contextLines, maxMatches }, responseText: text, anchors: matches.map((match) => match.anchor) }) }
+  const ranges = mergeRanges(matches)
+  const text = formatSearchText({ path, content, workspaceKey, matches, ranges, anchors, lines, truncated: totalMatches > matches.length })
+  const emittedAnchors = anchorsForRanges(ranges, anchors)
+  return {
+    path,
+    fileHash: contentHash(content),
+    query,
+    regex,
+    caseSensitive,
+    contextLines,
+    maxMatches,
+    matches,
+    ranges: ranges.map((range) => ({ startLine: range.start + 1, endLine: range.end })),
+    text,
+    telemetry: {
+      ...makeTelemetry({ operation: "anchored_search", fullContent: content, requestPayload: { path, sessionId, query, regex, caseSensitive, contextLines, maxMatches }, responseText: text, anchors: emittedAnchors }),
+      matchAnchorCount: matchedAnchors.length,
+      emittedAnchorCount: emittedAnchors.length,
+    },
+  }
 }
 
 function makeMatcher(query, { regex, caseSensitive }) {
@@ -54,18 +77,35 @@ function makeMatcher(query, { regex, caseSensitive }) {
   return (line) => (caseSensitive ? line : line.toLowerCase()).includes(needle)
 }
 
-function countMatches(lines, matcher) {
-  let count = 0
-  for (const line of lines) if (matcher(line)) count += 1
-  return count
+function mergeRanges(matches) {
+  const ranges = []
+  for (const match of matches) {
+    const start = match.startLine - 1
+    const end = match.endLine
+    const last = ranges[ranges.length - 1]
+    if (last && start <= last.end) {
+      last.end = Math.max(last.end, end)
+      last.matchLines.push(match.line)
+    } else {
+      ranges.push({ start, end, matchLines: [match.line] })
+    }
+  }
+  return ranges
 }
 
-function formatSearchText({ path, content, workspaceKey, matches, truncated }) {
+function anchorsForRanges(ranges, anchors) {
+  return [...new Set(ranges.flatMap((range) => anchors.slice(range.start, range.end)))]
+}
+
+function formatSearchText({ path, content, workspaceKey, matches, ranges, anchors, lines, truncated }) {
   const totalLines = splitLines(content).length
-  const matchedLines = new Set(matches.flatMap((m) => Array.from({ length: m.endLine - m.startLine + 1 }, (_, i) => m.startLine + i))).size
-  const savedPct = totalLines > 0 ? Math.round((1 - matchedLines / totalLines) * 100) : 0
+  const emittedLines = ranges.reduce((sum, range) => sum + (range.end - range.start), 0)
+  const savedPct = totalLines > 0 ? Math.round((1 - emittedLines / totalLines) * 100) : 0
   const workspaceTag = workspaceKey ? `[Workspace: ${workspaceKey}] ` : ""
-  const header = `${workspaceTag}[File: ${path}] [File Hash: ${contentHash(content)}] [Matches: ${matches.length}${truncated ? "+" : ""}] [~${savedPct}% of file not transferred]`
+  const header = `${workspaceTag}[File: ${path}] [File Hash: ${contentHash(content)}] [Matches: ${matches.length}${truncated ? "+" : ""}] [Ranges: ${ranges.length}] [~${savedPct}% of file not transferred]`
   if (matches.length === 0) return `${header}\n(no matches)`
-  return `${header}\n${matches.map((match) => `--- match line ${match.line} ---\n${match.snippet}`).join("\n")}`
+  return `${header}\n${ranges.map((range) => {
+    const snippet = lines.slice(range.start, range.end).map((line, offset) => formatAnchoredLine(anchors[range.start + offset], line)).join("\n")
+    return `--- match line${range.matchLines.length === 1 ? "" : "s"} ${range.matchLines.join(", ")} ---\n${snippet}`
+  }).join("\n")}`
 }

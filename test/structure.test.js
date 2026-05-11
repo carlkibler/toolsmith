@@ -268,3 +268,79 @@ test("getFunction ignores comment braces and multiline signatures", () => {
   assert.match(result.text, /return value/)
   assert.doesNotMatch(result.text, /function next/)
 })
+
+
+test("getFunction finds Python multiline def including body", () => {
+  const store = new AnchorStore()
+  const py = `def target(
+    a,
+    b
+):
+    return a + b
+
+def other():
+    return 0
+`
+  const result = getFunction({ path: "multi.py", content: py, store, sessionId: "py-multi", name: "target" })
+
+  assert.equal(result.found, true)
+  assert.match(result.text, /def target/)
+  assert.match(result.text, /return a \+ b/)
+  assert.doesNotMatch(result.text, /def other/)
+})
+
+test("getFunction finds Go receiver method by name", () => {
+  const store = new AnchorStore()
+  const result = getFunction({ path: "main.go", content: goContent, store, sessionId: "go-method", name: "String" })
+
+  assert.equal(result.found, true)
+  assert.match(result.text, /func \(c Config\) String/)
+  assert.match(result.text, /Sprintf/)
+})
+
+test("getFunction finds typed TypeScript const arrow", () => {
+  const store = new AnchorStore()
+  const ts = `type Handler = (value: string) => string
+const handleRequest: Handler = async (value) => {
+  return value
+}
+const other = () => 1
+`
+  const result = getFunction({ path: "typed.ts", content: ts, store, sessionId: "typed", name: "handleRequest" })
+
+  assert.equal(result.found, true)
+  assert.match(result.text, /handleRequest: Handler/)
+  assert.match(result.text, /return value/)
+  assert.doesNotMatch(result.text, /const other/)
+})
+
+test("fileSkeleton finds TypeScript const arrows with defaulted generic annotations", () => {
+  const store = new AnchorStore()
+  const ts = `type Handler<T = string> = (value: T) => T
+const handleRequest: Handler<T = string> = (value) => {
+  return value
+}
+`
+  const result = fileSkeleton({ path: "generic.ts", content: ts, store, sessionId: "generic-default" })
+
+  assert(result.entries.some((entry) => entry.text.includes("handleRequest")))
+  assert.match(result.text, /handleRequest: Handler/)
+})
+
+test("getFunction includes decorators and Rust attributes", () => {
+  const store = new AnchorStore()
+  const py = `@route("/x")
+def handler():
+    return 1
+`
+  const pyResult = getFunction({ path: "decorated.py", content: py, store, sessionId: "decorated-py", name: "handler" })
+  assert.match(pyResult.text, /§@route/)
+
+  const rs = `#[test]
+pub fn checks() {
+    assert!(true);
+}
+`
+  const rsResult = getFunction({ path: "decorated.rs", content: rs, store, sessionId: "decorated-rs", name: "checks" })
+  assert.match(rsResult.text, /§#\[test\]/)
+})

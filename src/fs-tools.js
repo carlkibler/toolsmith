@@ -231,9 +231,7 @@ export class WorkspaceTools {
       fd = await fs.open(absolute, fsConstants.O_RDONLY | O_NOFOLLOW)
     } catch (e) {
       if (e.code === "ELOOP" && O_NOFOLLOW !== 0) {
-        // File is a symlink already verified by assertContained — re-verify and open normally
-        await this.#assertContained(absolute)
-        fd = await fs.open(absolute, fsConstants.O_RDONLY)
+        throw new Error(`${path.relative(this.cwd, absolute)}: refusing to read through symlink`)
       } else {
         throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
       }

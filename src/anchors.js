@@ -32,7 +32,7 @@ function lineHashes(lines) {
 function reconcileWithLcs(previousHashes, previousAnchors, currentHashes, path, used) {
   const rows = previousHashes.length
   const cols = currentHashes.length
-  const dp = Array.from({ length: rows + 1 }, () => new Uint16Array(cols + 1))
+  const dp = Array.from({ length: rows + 1 }, () => new Uint32Array(cols + 1))
 
   for (let row = rows - 1; row >= 0; row -= 1) {
     for (let col = cols - 1; col >= 0; col -= 1) {

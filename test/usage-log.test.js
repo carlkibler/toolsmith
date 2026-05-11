@@ -150,3 +150,23 @@ test("doc alias MCP smoke uses the inline MCP server without external SDK depend
   assert.match(result.stdout, /MCP handshake\/list-tools succeeded/)
   assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /Cannot find package '@modelcontextprotocol\/sdk'/)
 })
+
+
+test("UsageLogger summarizes Pi-style details payloads", async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-usagelog-details-"))
+  const logPath = path.join(tmpDir, "usage.jsonl")
+  const logger = new UsageLogger({ logPath, cwd: tmpDir, client: "pi" })
+
+  await logger.toolCall({
+    tool: "pi_anchored_edit",
+    args: { path: "demo.txt" },
+    result: { details: { ok: true, path: "demo.txt", changed: true, telemetry: { fullBytes: 100, estimatedTokensAvoided: 10 } } },
+    durationMs: 1,
+  })
+
+  const [record] = (await fs.readFile(logPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line))
+  assert.equal(record.result.ok, true)
+  assert.equal(record.result.path, "demo.txt")
+  assert.equal(record.result.changed, true)
+  assert.equal(record.result.telemetry.estimatedTokensAvoided, 10)
+})

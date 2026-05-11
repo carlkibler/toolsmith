@@ -129,13 +129,13 @@ test("applyAnchoredEdits: TOOLSMITH_TERSE=1 suppresses warning footer", () => {
 test("readAnchored header includes [Workspace: …] when workspaceKey provided", () => {
   const store = new AnchorStore()
   const result = readAnchored({ path: "app.js", content: "hello\nworld", store, sessionId: "s", workspaceKey: "myrepo" })
-  assert.match(result.text, /^\[Workspace: myrepo\] \[File Hash:/, "header should start with workspace tag")
+  assert.match(result.text, /^\[Workspace: myrepo\] \[File: app\.js\] \[File Hash:/, "header should start with workspace tag")
 })
 
 test("readAnchored header has no [Workspace: …] when workspaceKey omitted (library compat)", () => {
   const store = new AnchorStore()
   const result = readAnchored({ path: "app.js", content: "hello\nworld", store, sessionId: "s" })
-  assert.match(result.text, /^\[File Hash:/, "header should start with File Hash when no workspace")
+  assert.match(result.text, /^\[File: app\.js\] \[File Hash:/, "header should start with File Hash when no workspace")
   assert.doesNotMatch(result.text, /\[Workspace:/, "no Workspace tag expected")
 })
 

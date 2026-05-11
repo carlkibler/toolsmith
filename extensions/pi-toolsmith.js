@@ -6,11 +6,21 @@ import { WorkspaceTools } from "../src/fs-tools.js"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const { version } = JSON.parse(readFileSync(path.join(__dirname, "..", "package.json"), "utf8"))
 const workspaces = new Map()
+const configuredWorkspaceCacheMax = Number(process.env.TOOLSMITH_PI_WORKSPACE_CACHE_MAX || 32)
+const workspaceCacheMax = Number.isFinite(configuredWorkspaceCacheMax) && configuredWorkspaceCacheMax > 0 ? configuredWorkspaceCacheMax : 32
 
 function toolsFor(cwd) {
-  const key = cwd || process.cwd()
-  if (!workspaces.has(key)) workspaces.set(key, new WorkspaceTools({ cwd: key }))
-  return workspaces.get(key)
+  const key = path.resolve(cwd || process.cwd())
+  if (workspaces.has(key)) {
+    const tools = workspaces.get(key)
+    workspaces.delete(key)
+    workspaces.set(key, tools)
+    return tools
+  }
+  const tools = new WorkspaceTools({ cwd: key })
+  workspaces.set(key, tools)
+  while (workspaces.size > workspaceCacheMax) workspaces.delete(workspaces.keys().next().value)
+  return tools
 }
 
 function verboseOutput() {
@@ -26,10 +36,13 @@ function toolContent(result, summary) {
 }
 
 function readSummary(result) {
-  const lineCount = result.lineCount || result.endLine
-  const range = result.startLine === 1 && result.endLine === lineCount
-    ? `${lineCount} line(s)`
-    : `lines ${result.startLine}–${result.endLine} of ${lineCount}`
+  const lineCount = result.lineCount ?? result.endLine
+  const isFullFile = result.startLine === 1 && result.endLine === lineCount
+  const range = lineCount === 0
+    ? "0 line(s)"
+    : isFullFile
+      ? `${lineCount} line(s)`
+      : `lines ${result.startLine}–${result.endLine} of ${lineCount}`
   return `Anchored read ${result.path} (${range}, ${result.anchors?.length || 0} anchor(s), hash ${result.fileHash}). Full anchored content is in details.text.`
 }
 
@@ -305,7 +318,7 @@ export default function toolsmithPiExtension(pi) {
       const tools = toolsFor(ctx?.cwd)
       return {
         content: [{ type: "text", text: `toolsmith Pi extension ready in ${ctx?.cwd || process.cwd()} [workspace: ${tools.workspaceKey}]` }],
-        details: { cwd: ctx?.cwd || process.cwd(), workspaceKey: tools.workspaceKey, version },
+        details: { cwd: ctx?.cwd || process.cwd(), workspaceKey: tools.workspaceKey, version, workspaceCacheSize: workspaces.size, workspaceCacheMax },
       }
     },
   })

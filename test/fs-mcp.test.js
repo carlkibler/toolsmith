@@ -90,7 +90,7 @@ test("CLI read emits anchored content", async () => {
   await fs.writeFile(path.join(cwd, "demo.txt"), "alpha\nbeta", "utf8")
 
   const { stdout } = await execFileAsync(process.execPath, [path.resolve("bin/toolsmith.js"), "read", "demo.txt"], { cwd })
-  assert.match(stdout, /\[File Hash: [a-f0-9]{8}\]/)
+  assert.match(stdout, /\[File: demo\.txt\] \[File Hash: [a-f0-9]{8}\]/)
   assert.match(stdout, /§alpha/)
 })
 
@@ -272,7 +272,7 @@ test("WorkspaceTools findAndAnchor reports candidate truncation", async () => {
   const result = await tools.findAndAnchor({ path: ".", query: "needle", maxFiles: 1 })
 
   assert.equal(result.truncated, true)
-  assert.match(result.text, /Files scanned: 1\/1\+/)
+  assert.match(result.text, /Candidate files: 1\+ truncated at maxFiles=1/)
 })
 
 test("WorkspaceTools dryRun validates without writing", async () => {
@@ -304,6 +304,7 @@ test("WorkspaceTools read respects startLine and endLine", async () => {
 
   assert.equal(partial.startLine, 5)
   assert.equal(partial.endLine, 8)
+  assert.equal(partial.lineCount, 200)
   assert.equal(partial.anchors.length, 4)
   assert.match(partial.text, /line 5/)
   assert.match(partial.text, /line 8/)
@@ -341,4 +342,27 @@ test("MCP anchored_edit_many applies cross-file batch", async () => {
   } finally {
     await client.close()
   }
+})
+
+
+test("WorkspaceTools rejects contained symlink reads", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "target.txt"), "secret", "utf8")
+  await fs.symlink("target.txt", path.join(cwd, "link.txt"))
+  const tools = new WorkspaceTools({ cwd })
+
+  await assert.rejects(() => tools.read({ path: "link.txt" }), /refusing to read through symlink|ELOOP/)
+})
+
+test("WorkspaceTools findAndAnchor glob ** matches root and nested files", async () => {
+  const cwd = await tempWorkspace()
+  await fs.mkdir(path.join(cwd, "nested"))
+  await fs.writeFile(path.join(cwd, "root.js"), "needle root", "utf8")
+  await fs.writeFile(path.join(cwd, "nested", "child.js"), "needle child", "utf8")
+  const tools = new WorkspaceTools({ cwd })
+
+  const result = await tools.findAndAnchor({ path: ".", query: "needle", glob: "**/*.js", maxMatches: 5, contextLines: 0 })
+
+  assert(result.matches.some((match) => match.path === "root.js"))
+  assert(result.matches.some((match) => match.path === "nested/child.js"))
 })

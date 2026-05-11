@@ -64,7 +64,7 @@ function isSkeletonLine(line) {
     /^(?:pub(?:\s*\([^)]*\))?\s+)?(?:async\s+)?fn\s+/u.test(t) ||
     /^func\s+/u.test(t) ||
     /^(?:pub(?:\s*\([^)]*\))?\s+)?(?:class|struct|enum|protocol|interface|trait|impl|module|extension|type)\s+/u.test(t) ||
-    /^(?:const|let|var)\s+\w+\s*=\s*(?:async\s+)?(?:\(|\w+\s*=>)/u.test(t)
+    /^(?:export\s+)?(?:const|let|var)\s+\w+(?:\s*:\s*.*?)?\s*=\s*(?:async\s+)?(?:function\b|\(|\w+\s*=>)/u.test(t)
   )
 }
 
@@ -86,7 +86,8 @@ function formatSkeletonText({ path, content, workspaceKey, entries, truncated })
 export function findSymbolRange(lines, name) {
   const startIndex = findSymbolStart(lines, name)
   if (startIndex === -1) return null
-  return { startIndex, endIndex: findSymbolEnd(lines, startIndex) }
+  const rangeStart = includeLeadingAttributes(lines, startIndex)
+  return { startIndex: rangeStart, endIndex: findSymbolEnd(lines, startIndex) }
 }
 
 function findSymbolStart(lines, name) {
@@ -94,12 +95,12 @@ function findSymbolStart(lines, name) {
   const patterns = [
     new RegExp(`\\b(?:export\\s+(?:default\\s+)?)?(?:async\\s+)?function\\s+${e}\\b`),
     new RegExp(`\\b(?:export\\s+)?(?:class|def|struct|enum|protocol|interface|type|trait|impl|module|extension)\\s+${e}\\b`),
-    new RegExp(`\\b(?:export\\s+)?(?:const|let|var)\\s+${e}\\s*=`),
-    new RegExp(`\\b${e}\\s*[:=]\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*=>)`),
+    new RegExp(`\\b(?:export\\s+)?(?:const|let|var)\\s+${e}(?:\\s*:\\s*.*?)?\\s*=`),
+    new RegExp(`\\b${e}\\s*(?::\\s*.*?)?=\\s*(?:async\\s*)?(?:function\\b|\\([^)]*\\)\\s*=>)`),
     new RegExp(`\\b(?:pub(?:\\s*\\([^)]*\\))?\\s+)?(?:async\\s+)?fn\\s+${e}\\b`),
-    new RegExp(`\\bfunc\\s+${e}\\b`),
+    new RegExp(`\\bfunc\\s+(?:\\([^)]*\\)\\s*)?${e}\\b`),
   ]
-  return lines.findIndex((line) => !isCommentOnly(line) && patterns.some((pattern) => pattern.test(line)))
+  return lines.findIndex((line) => !isCommentOnly(line) && patterns.some((pattern) => pattern.test(stripCodeNoise(line))))
 }
 
 function findSymbolEnd(lines, startIndex) {
@@ -137,12 +138,32 @@ function findBraceEnd(lines, startIndex) {
 }
 
 function findIndentEnd(lines, startIndex) {
+  const signatureEnd = findIndentedSignatureEnd(lines, startIndex)
   const baseIndent = indentation(lines[startIndex])
-  for (let index = startIndex + 1; index < lines.length; index += 1) {
+  for (let index = signatureEnd + 1; index < lines.length; index += 1) {
     const line = lines[index]
     if (line.trim() && indentation(line) <= baseIndent) return index - 1
   }
   return lines.length - 1
+}
+
+function findIndentedSignatureEnd(lines, startIndex) {
+  for (let index = startIndex; index < Math.min(lines.length, startIndex + 50); index += 1) {
+    const line = stripCodeNoise(lines[index]).trim()
+    if (line.endsWith(":")) return index
+    if (index > startIndex && line && indentation(lines[index]) <= indentation(lines[startIndex]) && isSkeletonLine(lines[index])) return index - 1
+  }
+  return startIndex
+}
+
+function includeLeadingAttributes(lines, startIndex) {
+  let index = startIndex
+  while (index > 0) {
+    const prev = lines[index - 1].trim()
+    if (prev.startsWith("@") || prev.startsWith("#[")) index -= 1
+    else break
+  }
+  return index
 }
 
 function indentation(line) {

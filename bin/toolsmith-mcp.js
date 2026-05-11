@@ -33,10 +33,13 @@ function toolContent(result, summary) {
 }
 
 function readSummary(result) {
-  const lineCount = result.lineCount || result.endLine
-  const range = result.startLine === 1 && result.endLine === lineCount
-    ? `${lineCount} line(s)`
-    : `lines ${result.startLine}–${result.endLine} of ${lineCount}`
+  const lineCount = result.lineCount ?? result.endLine
+  const isFullFile = result.startLine === 1 && result.endLine === lineCount
+  const range = lineCount === 0
+    ? "0 line(s)"
+    : isFullFile
+      ? `${lineCount} line(s)`
+      : `lines ${result.startLine}–${result.endLine} of ${lineCount}`
   return `Anchored read ${result.path} (${range}, ${result.anchors?.length || 0} anchor(s), hash ${result.fileHash}). Full anchored content is in structuredContent.text.`
 }
 
@@ -307,7 +310,7 @@ registerTool(
   async (args) => {
     const result = await workspace.edit(args)
     const warningLines = (result.warnings || []).map((w) => `warning: ${w}`)
-    for (const w of warningLines) process.stderr.write(`[toolsmith-mcp] ${w}\n`)
+    if (envEnabled(process.env.TOOLSMITH_DEBUG)) for (const w of warningLines) process.stderr.write(`[toolsmith-mcp] ${w}\n`)
     const summary = result.ok
       ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}${result.changed ? "" : " (no content change)"}. ${result.beforeHash} -> ${result.afterHash}${warningLines.length ? `\n${warningLines.join("\n")}` : ""}`
       : `Anchored edit failed for ${result.path}:\n${result.errors.join("\n")}`
@@ -348,7 +351,7 @@ registerTool(
   async (args) => {
     const result = await workspace.editMany(args)
     const warningLines = (result.warnings || []).map((w) => `warning: ${w}`)
-    for (const w of warningLines) process.stderr.write(`[toolsmith-mcp] ${w}\n`)
+    if (envEnabled(process.env.TOOLSMITH_DEBUG)) for (const w of warningLines) process.stderr.write(`[toolsmith-mcp] ${w}\n`)
     const edited = result.files.reduce((sum, file) => sum + (file.applied?.length || 0), 0)
     const summary = result.ok
       ? `${result.dryRun ? "Would apply" : "Applied"} ${edited} anchored edit(s) across ${result.files.length} file(s).${warningLines.length ? `\n${warningLines.join("\n")}` : ""}`

@@ -76,6 +76,8 @@ test("Pi extension status and tools tolerate missing ctx cwd", async () => {
   const status = await registered.get("pi_anchored_status").execute("status")
   assert.equal(status.details.cwd, process.cwd())
   assert.match(status.details.version, /^0\.1\./)
+  assert(status.details.workspaceCacheSize >= 1)
+  assert(status.details.workspaceCacheMax >= 1)
 })
 
 test("Pi symbol_replace treats not-found as guidance, not a hard adapter error", async () => {

@@ -9,7 +9,7 @@ function anchoredLine(read, index, content) {
 test("readAnchored returns file hash and anchored lines", () => {
   const store = new AnchorStore()
   const read = readAnchored({ path: "a.js", content: "one\ntwo", store, sessionId: "s" })
-  assert.match(read.text, /^\[File Hash: [a-f0-9]{8}\]/)
+  assert.match(read.text, /^\[File: a\.js\] \[File Hash: [a-f0-9]{8}\]/)
   assert.equal(read.anchors.length, 2)
   assert.match(read.text, new RegExp(`${read.anchors[0]}${ANCHOR_DELIMITER}one`))
   assert.equal(read.telemetry.operation, "anchored_read")
@@ -326,4 +326,27 @@ test("readAnchored rejects invalid ranges", () => {
   const store = new AnchorStore()
   assert.throws(() => readAnchored({ path: "range.txt", content: "a\nb", store, sessionId: "range", startLine: 3, endLine: 2 }), /startLine/)
   assert.throws(() => readAnchored({ path: "range.txt", content: "a\nb", store, sessionId: "range", startLine: 0 }), /positive integer/)
+})
+
+
+test("readAnchored reads empty file without throwing", () => {
+  const store = new AnchorStore()
+  const read = readAnchored({ path: "empty.txt", content: "", store, sessionId: "empty" })
+  assert.equal(read.lineCount, 0)
+  assert.equal(read.startLine, 1)
+  assert.equal(read.endLine, 0)
+  assert.deepEqual(read.anchors, [])
+  assert.match(read.text, /\[File: empty\.txt\]/)
+})
+
+test("searchAnchored merges overlapping context ranges", () => {
+  const store = new AnchorStore()
+  const content = ["one", "hit a", "hit b", "four"].join("\n")
+  const result = searchAnchored({ path: "merge.txt", content, store, sessionId: "merge", query: "hit", contextLines: 1 })
+
+  assert.equal(result.matches.length, 2)
+  assert.equal(result.ranges.length, 1)
+  assert.equal((result.text.match(/A[a-z0-9]+§one/gi) || []).length, 1)
+  assert.equal(result.telemetry.matchAnchorCount, 2)
+  assert.equal(result.telemetry.emittedAnchorCount, 4)
 })

@@ -76,7 +76,8 @@ export async function findAndAnchor({
   const responseBody = sections.length ? sections.join("\n\n") : "(no matches)"
   const workspaceTag = workspaceKey ? `[Workspace: ${workspaceKey}] ` : ""
   const errorNote = searchError ? ` [Error: ${searchError}]` : ""
-  const text = `${workspaceTag}[Find: ${query}] [Files scanned: ${scannedFiles}/${files.length}${truncated ? "+" : ""}] [Files matched: ${sections.length}] [Matches: ${matches.length}${truncated ? "+" : ""}]${errorNote}\n${searchError ? `(error: ${searchError})` : responseBody}`
+  const candidateNote = collection.truncatedCandidates ? ` [Candidate files: ${files.length}+ truncated at maxFiles=${maxFiles}]` : ` [Candidate files: ${files.length}]`
+  const text = `${workspaceTag}[Find: ${query}] [Files scanned: ${scannedFiles}]${candidateNote} [Files matched: ${sections.length}] [Matches: ${matches.length}${truncated ? "+" : ""}]${errorNote}\n${searchError ? `(error: ${searchError})` : responseBody}`
   return {
     path: rootRelative,
     query,
@@ -89,6 +90,7 @@ export async function findAndAnchor({
     glob,
     scannedFiles,
     candidateFiles: files.length,
+    candidateCollectionTruncated: collection.truncatedCandidates,
     matchedFiles: sections.length,
     matches,
     truncated,
@@ -135,6 +137,11 @@ function globMatcher(glob) {
 function globToRegExp(glob) {
   let out = ""
   for (let i = 0; i < glob.length; i += 1) {
+    if (glob.slice(i, i + 3) === "**/") {
+      out += "(?:.*/)?"
+      i += 2
+      continue
+    }
     const char = glob[i]
     if (char === "*") {
       if (glob[i + 1] === "*") { out += ".*"; i += 1 } else out += "[^/]*"

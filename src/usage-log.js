@@ -82,7 +82,7 @@ function summarizeArgs(args = {}) {
 }
 
 function summarizeResult(result = {}) {
-  const structured = result.structuredContent || result.structured_content || {}
+  const structured = result.structuredContent || result.structured_content || result.details || {}
   const telemetry = structured.telemetry || result.telemetry
   const base = {
     isError: Boolean(result.isError),
