@@ -1,6 +1,6 @@
 {
   "name": "@carlkibler/toolsmith",
-  "version": "0.1.31",
+  "version": "0.1.32",
   "description": "Save tokens in AI agent sessions — surgical reads and exact edits for Claude Code, Codex, Gemini CLI, and 15+ more agents.",
   "type": "module",
   "main": "./src/index.js",
