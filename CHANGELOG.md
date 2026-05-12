@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.32 — 2026-05-11
+
+- Collapse Pi.dev setup/update drift repair into one concise output line per tool.
+- Quiet expected stale-package removal failures when Toolsmith can prune the stale Pi.dev settings entry directly.
+
 ## 0.1.31 — 2026-05-11
 
 - Harden `get_function`/`symbol_replace` symbol range detection for JavaScript and TypeScript functions with destructured parameters, including multiline destructuring before the body brace.
