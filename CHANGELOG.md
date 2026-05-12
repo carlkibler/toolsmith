@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.33 — 2026-05-12
+
+- Migrate the Codex footer setup from deprecated `[features].codex_hooks` to `[features].hooks`.
+- Ensure Toolsmith setup enables `hooks = true` when installing the Codex footer hook while preserving existing `hooks.json` entries.
+
 ## 0.1.32 — 2026-05-11
 
 - Collapse Pi.dev setup/update drift repair into one concise output line per tool.
