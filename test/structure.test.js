@@ -269,6 +269,40 @@ test("getFunction ignores comment braces and multiline signatures", () => {
   assert.doesNotMatch(result.text, /function next/)
 })
 
+test("getFunction handles destructured JavaScript parameters before the body brace", () => {
+  const store = new AnchorStore()
+  const source = `export function applyAnchoredEdits({ path, content, edits }) {
+  const next = { ok: true }
+  return next
+}
+function after() {
+  return false
+}`
+  const result = getFunction({ path: "destructured.js", content: source, store, sessionId: "destructured", name: "applyAnchoredEdits" })
+
+  assert.equal(result.found, true)
+  assert.match(result.text, /const next = \{ ok: true \}/)
+  assert.match(result.text, /return next/)
+  assert.doesNotMatch(result.text, /function after/)
+})
+
+test("getFunction handles multiline destructured JavaScript parameters", () => {
+  const store = new AnchorStore()
+  const source = `function target({
+  value
+}) {
+  return value
+}
+function after() {
+  return false
+}`
+  const result = getFunction({ path: "multiline-destructured.js", content: source, store, sessionId: "multiline-destructured", name: "target" })
+
+  assert.equal(result.found, true)
+  assert.match(result.text, /return value/)
+  assert.doesNotMatch(result.text, /function after/)
+})
+
 
 test("getFunction finds Python multiline def including body", () => {
   const store = new AnchorStore()

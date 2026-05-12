@@ -111,12 +111,31 @@ function findSymbolEnd(lines, startIndex) {
 
 function findOpeningBraceLine(lines, startIndex) {
   const startIndent = indentation(lines[startIndex])
+  let inBlockComment = false
+  let parenDepth = 0
+  let bracketDepth = 0
   for (let index = startIndex; index < Math.min(lines.length, startIndex + 20); index += 1) {
-    const line = stripCodeNoise(lines[index])
-    if (index > startIndex && line.trim() && indentation(lines[index]) <= startIndent && isSkeletonLine(lines[index])) break
-    if (line.includes("{")) return index
+    const stripped = stripCodeNoiseStateful(lines[index], { inBlockComment })
+    inBlockComment = stripped.inBlockComment
+    if (index > startIndex && stripped.line.trim() && indentation(lines[index]) <= startIndent && isSkeletonLine(lines[index])) break
+    const scan = scanBodyOpeningBrace(stripped.line, { parenDepth, bracketDepth })
+    parenDepth = scan.parenDepth
+    bracketDepth = scan.bracketDepth
+    if (scan.found) return index
   }
   return -1
+}
+
+function scanBodyOpeningBrace(line, state) {
+  let { parenDepth, bracketDepth } = state
+  for (const char of line) {
+    if (char === "(") parenDepth += 1
+    else if (char === ")") parenDepth = Math.max(0, parenDepth - 1)
+    else if (char === "[") bracketDepth += 1
+    else if (char === "]") bracketDepth = Math.max(0, bracketDepth - 1)
+    else if (char === "{" && parenDepth === 0 && bracketDepth === 0) return { found: true, parenDepth, bracketDepth }
+  }
+  return { found: false, parenDepth, bracketDepth }
 }
 
 function findBraceEnd(lines, startIndex) {
@@ -126,13 +145,19 @@ function findBraceEnd(lines, startIndex) {
   for (let index = startIndex; index < lines.length; index += 1) {
     const stripped = stripCodeNoiseStateful(lines[index], { inBlockComment })
     inBlockComment = stripped.inBlockComment
-    for (const char of stripped.line) {
+    for (let charIndex = 0; charIndex < stripped.line.length; charIndex += 1) {
+      const char = stripped.line[charIndex]
       if (char === "{") {
         depth += 1
         seenOpen = true
       } else if (char === "}") {
+        if (!seenOpen) continue
         depth -= 1
-        if (seenOpen && depth <= 0) return index
+        if (seenOpen && depth <= 0) {
+          const laterOpenOnStartLine = index === startIndex && stripped.line.indexOf("{", charIndex + 1) !== -1
+          if (laterOpenOnStartLine) continue
+          return index
+        }
       }
     }
   }
