@@ -280,7 +280,7 @@ memories = true
     const stopHooks = hooks.hooks.Stop.flatMap((group) => group.hooks || [])
     const footerHooks = stopHooks.filter((hook) => String(hook.command || "").includes("toolsmith-token-footer.sh"))
     assert.equal(footerHooks.length, 1, "footer hook must be installed exactly once after repeated setup")
-    assert.equal(footerHooks[0].timeout, 3)
+    assert.equal(footerHooks[0].timeout, 10)
     assert.equal(stopHooks.some((hook) => hook.command === "bash ~/.codex/hooks/auto-rename-session.sh"), true, "existing Stop hooks must be preserved")
     assert.equal(hooks.hooks.PreToolUse[0].hooks[0].command, "tl-hook run", "unrelated hook events must be preserved")
     const config = await fs.readFile(configPath, "utf8")
