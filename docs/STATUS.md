@@ -1,6 +1,6 @@
 # Project Status
 
-Updated: 2026-05-07 (Pi.dev stale-package drift fix, global MCP cleanup)
+Updated: 2026-05-12 (Codex hooks flag migration)
 
 ## What exists now
 
@@ -23,7 +23,7 @@ Implemented pieces:
   - unchanged-line anchor preservation across nearby edits
 - CLI in `bin/toolsmith.js`
   - `read`, `search`, `find-and-anchor`, `skeleton`, `get-function`, `symbol-replace`, `edit`, `edit-many`
-  - `setup` / `install` — registers MCP with Claude Code, Codex, Gemini, Pi.dev, OpenCode, and detected JSON MCP clients; output is quiet for undetected clients and ordered Claude/Codex/Pi/OpenCode/Gemini first, then the rest alphabetically; safely installs a de-duplicated, quiet-by-default Codex Stop footer unless `--no-codex-footer` is passed; when explicitly enabled, the footer includes Codex token usage plus 5h/weekly limit reset countdowns when the transcript has rate-limit snapshots
+  - `setup` / `install` — registers MCP with Claude Code, Codex, Gemini, Pi.dev, OpenCode, and detected JSON MCP clients; output is quiet for undetected clients and ordered Claude/Codex/Pi/OpenCode/Gemini first, then the rest alphabetically; safely installs a de-duplicated, quiet-by-default Codex Stop footer unless `--no-codex-footer` is passed; migrates deprecated `[features].codex_hooks` to `[features].hooks` and enables `hooks = true` for the footer; when explicitly enabled, the footer includes Codex token usage plus 5h/weekly limit reset countdowns when the transcript has rate-limit snapshots
   - `adopt` — standalone `--inject` / `--remove` for priming block without a full reinstall
   - `doctor` / `doc` — verifies Node ≥20, MCP binary, registration drift, Codex approval-policy, adoption gap, and log writability; `--fix` self-repairs most issues
   - `update` — installs the latest GitHub release package and refreshes MCP registrations/Codex footer by default (`--from PATH` opts into local checkout installs; `--no-setup` skips refresh; `--no-codex-footer` skips only the footer)
@@ -92,7 +92,7 @@ Integration coverage in tests:
 - write size enforcement at both schema validation and file write layers
 - anchor-mismatch error human footer present; suppressed under TOOLSMITH_TERSE=1
 - resilience: install-time MCP handshake smoke, crash guard recovery reporting, doctor self-repair
-- setup: Codex config repair without orphan path tables; Codex approval-policy warning
+- setup: Codex config repair without orphan path tables; Codex approval-policy warning; Codex footer hook feature flag migration from `codex_hooks` to `hooks`
 - setup: priming block injection into CLAUDE.md (idempotent, round-trips cleanly with adopt --remove)
 - doctor: adoption gap detection via usage log; suggestion to run `toolsmith adopt --inject`
 - update: release-package install is the default; `--from PATH` is the explicit local-checkout escape hatch; integration refresh output hides undetected clients and JSON-client detection runs in parallel

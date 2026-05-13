@@ -248,7 +248,13 @@ test("setup: MCP smoke runs and reports handshake on successful install", async 
 
 
 test("setup: installs Codex token footer without duplicating or clobbering hooks", async () => {
-  const { home } = await seedHomeWithCodexConfig()
+  const { home, configPath } = await seedHomeWithCodexConfig()
+  await fs.appendFile(configPath, `
+[features]
+js_repl = true
+codex_hooks = true
+memories = true
+`, "utf8")
   const hooksPath = path.join(home, ".codex", "hooks.json")
   await fs.writeFile(hooksPath, JSON.stringify({
     hooks: {
@@ -277,6 +283,9 @@ test("setup: installs Codex token footer without duplicating or clobbering hooks
     assert.equal(footerHooks[0].timeout, 3)
     assert.equal(stopHooks.some((hook) => hook.command === "bash ~/.codex/hooks/auto-rename-session.sh"), true, "existing Stop hooks must be preserved")
     assert.equal(hooks.hooks.PreToolUse[0].hooks[0].command, "tl-hook run", "unrelated hook events must be preserved")
+    const config = await fs.readFile(configPath, "utf8")
+    assert.match(config, /\[features\][\s\S]*\nhooks = true\nmemories = true/, "deprecated Codex hook flag must migrate to hooks = true")
+    assert.doesNotMatch(config, /codex_hooks/, "deprecated Codex hook flag must be removed")
     const script = await fs.stat(path.join(home, ".codex", "hooks", "toolsmith-token-footer.sh"))
     assert.equal((script.mode & 0o111) !== 0, true, "footer script must be executable")
     assert.match(first.stdout || "", /Codex footer:\s+installed/)
@@ -285,6 +294,21 @@ test("setup: installs Codex token footer without duplicating or clobbering hooks
   }
 })
 
+test("setup: adds new Codex hooks feature flag when feature table is absent", async () => {
+  const { home, configPath } = await seedHomeWithCodexConfig()
+  try {
+    await execFileAsync(
+      process.execPath,
+      [CLI, "setup", "--no-smoke", "--force", "--no-priming"],
+      { cwd: home, env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin" } },
+    )
+    const config = await fs.readFile(configPath, "utf8")
+    assert.match(config, /\[features\]\nhooks = true/, "setup should enable current Codex hooks feature flag for installed footer hook")
+    assert.doesNotMatch(config, /codex_hooks/, "setup should not write deprecated Codex hook flag")
+  } finally {
+    await fs.rm(home, { recursive: true, force: true })
+  }
+})
 
 test("Codex token footer is quiet by default and opt-in with env", async () => {
   const { home } = await seedHomeWithCodexConfig()
