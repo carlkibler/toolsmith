@@ -39,7 +39,7 @@ Keep the core boring and dependency-light. Harness adapters should wrap this pac
 
 Default to low-risk hooks that create feedback or nudge at the point of failure, not hooks that repeatedly inject prompt context.
 
-- Good default: evidence/feedback hooks like the Codex Stop footer that report Toolsmith token savings without changing model instructions.
+- Good default: evidence/feedback hooks like the Codex Stop footer that report Toolsmith token savings only when explicitly opted in, without changing model instructions or doing synchronous work by default.
 - Good optional path: targeted advisory hooks like the Claude PreToolUse tripwire for likely-large native reads/edits.
 - Avoid by default: SessionStart/PostCompact-style context injection that strongly insists on Toolsmith every new/resumed/compacted session; it risks noise, duplication, and token cost.
 - Durable priming belongs in `CLAUDE.md` / `AGENTS.md`; hooks should prove value or intervene only when behavior drifts.
