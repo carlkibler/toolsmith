@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.34 — 2026-05-13
+
+- Raise the installed Codex Stop footer hook timeout from 3s to 10s to avoid false timeout noise during intermittent transcript/disk stalls.
+
 ## 0.1.33 — 2026-05-12
 
 - Migrate the Codex footer setup from deprecated `[features].codex_hooks` to `[features].hooks`.
