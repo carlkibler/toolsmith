@@ -3,6 +3,7 @@
 ## 0.1.34 — 2026-05-13
 
 - Raise the installed Codex Stop footer hook timeout from 3s to 10s to avoid false timeout noise during intermittent transcript/disk stalls.
+- Make the installed Codex Stop footer truly opt-in: default runs exit before reading stdin or starting Node, while `TOOLSMITH_CODEX_FOOTER=1`/verbose/debug still show bounded token-reduction and savings telemetry.
 
 ## 0.1.33 — 2026-05-12
 

@@ -288,7 +288,7 @@ memories = true
     assert.doesNotMatch(config, /codex_hooks/, "deprecated Codex hook flag must be removed")
     const script = await fs.stat(path.join(home, ".codex", "hooks", "toolsmith-token-footer.sh"))
     assert.equal((script.mode & 0o111) !== 0, true, "footer script must be executable")
-    assert.match(first.stdout || "", /Codex footer:\s+installed/)
+    assert.match(first.stdout || "", /Codex footer:\s+installed \(opt-in via TOOLSMITH_CODEX_FOOTER=1\)/)
   } finally {
     await fs.rm(home, { recursive: true, force: true })
   }
@@ -331,10 +331,15 @@ test("Codex token footer is quiet by default and opt-in with env", async () => {
     })
     assert.equal(quiet.stdout, "")
 
+    const quietVerbosePayload = await execFileAsync("bash", ["-c", "printf '{\"verbose\":true}' | \"$1\"", "bash", script], {
+      env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin" },
+    })
+    assert.equal(quietVerbosePayload.stdout, "")
+
     const visible = await execFileAsync("bash", ["-c", "printf '{}' | \"$1\"", "bash", script], {
       env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin", TOOLSMITH_CODEX_FOOTER: "1" },
     })
-    assert.match(visible.stdout, /Toolsmith saved 1\.23k estimated tokens/)
+    assert.match(visible.stdout, /Toolsmith total token savings: 1,234 tokens\/48h/)
 
     const transcript = path.join(home, "session.jsonl")
     const now = Math.floor(Date.now() / 1000)
@@ -360,6 +365,7 @@ test("Codex token footer is quiet by default and opt-in with env", async () => {
     const withLimits = await execFileAsync("bash", ["-c", "printf '%s' \"$2\" | \"$1\"", "bash", script, JSON.stringify({ transcript_path: transcript })], {
       env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin", TOOLSMITH_CODEX_FOOTER: "1" },
     })
+    assert.match(withLimits.stdout, /Toolsmith token reduction: 50% \(total savings: 1,234 tokens\/48h\)/)
     assert.match(withLimits.stdout, /Codex usage: total=1,250 input=1,000/)
     assert.match(withLimits.stdout, /5h 75% ↺1h[0-9]+m/)
     assert.match(withLimits.stdout, /7d 95% ↺1d[0-9]+h/)
