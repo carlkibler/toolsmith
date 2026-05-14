@@ -56,10 +56,12 @@ Canonical project instructions: `CLAUDE.md`. Issue tracking: `bd` (beads) — se
 <!-- toolsmith:begin -->
 ## Toolsmith MCP
 
-Toolsmith is the default path for large-file code navigation and surgical edits when MCP tools are available. Use native Read/Edit/Write, shell `cat`, `nl`, or broad `sed -n` on files likely over 200 lines only when Toolsmith is unavailable or the file is genuinely small.
+Toolsmith is the default path for large-file code navigation and surgical edits when MCP tools are available. Do not use shell `cat`, `nl`, or `sed -n 'N,Mp'` line ranges on files over 200 lines — use Toolsmith tools instead.
 
-- Explore first: `mcp__toolsmith__file_skeleton`, `mcp__toolsmith__get_function`, or bounded `mcp__toolsmith__anchored_read`
-- Search before editing: `mcp__toolsmith__find_and_anchor` or `mcp__toolsmith__anchored_search` instead of `rg` + `sed`/`cat`
+- Explore structure: `mcp__toolsmith__file_skeleton` (replaces `cat`/`nl` on large files)
+- Read a range: `mcp__toolsmith__anchored_read` with `startLine`/`endLine` (replaces `sed -n 'N,Mp'`)
+- Find symbols/lines: `mcp__toolsmith__find_and_anchor` or `mcp__toolsmith__anchored_search` (replaces `rg`/`grep` + `sed`)
+- Read one symbol: `mcp__toolsmith__get_function`
 - Edit with validation: `mcp__toolsmith__anchored_edit` / `mcp__toolsmith__anchored_edit_many`
 - Single-symbol edits: `mcp__toolsmith__symbol_replace`
 - If you already used a native large-file read, switch to Toolsmith before editing so anchors and telemetry exist
