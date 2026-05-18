@@ -54,27 +54,27 @@ function readSummary(result) {
     : isFullFile
       ? `${lineCount} line(s)`
       : `lines ${result.startLine}–${result.endLine} of ${lineCount}`
-  return `Anchored read ${result.path} (${range}, ${result.anchors?.length || 0} anchor(s), hash ${result.fileHash}). Full anchored content is in structuredContent.text.`
+  return `Anchored read ${result.path} (${range}; ${result.anchors?.length || 0} anchor(s)).`
 }
 
 function searchSummary(result) {
   if (result.error) return `Anchored search ${result.path} failed for ${JSON.stringify(result.query)}: ${result.error}`
-  return `Anchored search ${result.path} matched ${result.matches?.length || 0}${result.truncated ? "+" : ""} line(s) for ${JSON.stringify(result.query)} (hash ${result.fileHash}). Full anchored snippets are in structuredContent.text.`
+  return `Anchored search ${result.path}: ${result.matches?.length || 0}${result.truncated ? "+" : ""} match(es) for ${JSON.stringify(result.query)}.`
 }
 
 function findSummary(result) {
   if (result.error) return `Find and anchor failed for ${JSON.stringify(result.query)} after scanning ${result.scannedFiles || 0} file(s): ${result.error}`
-  return `Find and anchor scanned ${result.scannedFiles || 0} file(s), matched ${result.matches?.length || 0}${result.truncated ? "+" : ""} line(s) in ${result.matchedFiles || 0} file(s) for ${JSON.stringify(result.query)}. Full anchored snippets are in structuredContent.text.`
+  return `Find and anchor: ${result.matches?.length || 0}${result.truncated ? "+" : ""} match(es) in ${result.matchedFiles || 0} file(s) for ${JSON.stringify(result.query)} (scanned ${result.scannedFiles || 0}).`
 }
 
 function skeletonSummary(result) {
-  return `File skeleton ${result.path}: ${result.entries?.length || 0} entr${result.entries?.length === 1 ? "y" : "ies"} (hash ${result.fileHash}). Full anchored skeleton is in structuredContent.text.`
+  return `File skeleton ${result.path}: ${result.entries?.length || 0} entr${result.entries?.length === 1 ? "y" : "ies"}.`
 }
 
 function functionSummary(result) {
   return result.found
-    ? `Function ${result.name} in ${result.path}: lines ${result.startLine}–${result.endLine}${result.truncated ? "+" : ""} (hash ${result.fileHash}). Full anchored source is in structuredContent.text.`
-    : `Function ${result.name} not found in ${result.path} (hash ${result.fileHash}).`
+    ? `Function ${result.name} in ${result.path}: lines ${result.startLine}–${result.endLine}${result.truncated ? "+" : ""}.`
+    : `Function ${result.name} not found in ${result.path}.`
 }
 if (process.env.TOOLSMITH_USAGE_LOG === "0" && verboseOutput()) process.stderr.write("[toolsmith-mcp] usage logging disabled (TOOLSMITH_USAGE_LOG=0)\n")
 
@@ -297,7 +297,7 @@ registerTool(
   async (args) => {
     const result = await workspace.symbolReplace(args)
     const summary = result.ok
-      ? `${result.dryRun ? "Would replace" : "Replaced"} ${result.matches} match(es) in ${result.name} (${result.path}). ${result.beforeHash} -> ${result.afterHash}`
+      ? `${result.dryRun ? "Would replace" : "Replaced"} ${result.matches} match(es) in ${result.name} (${result.path}).`
       : result.notFound
         ? `No match in ${args.path}: ${result.errors.join("; ")} — try get_function to inspect the current source.`
         : `Symbol replace failed for ${args.path}:\n${result.errors.join("\n")}`
@@ -328,7 +328,7 @@ registerTool(
     const warningLines = (result.warnings || []).map((w) => `warning: ${w}`)
     if (envEnabled(process.env.TOOLSMITH_DEBUG)) for (const w of warningLines) process.stderr.write(`[toolsmith-mcp] ${w}\n`)
     const summary = result.ok
-      ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}${result.changed ? "" : " (no content change)"}. ${result.beforeHash} -> ${result.afterHash}${warningLines.length ? `\n${warningLines.join("\n")}` : ""}`
+      ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}${result.changed ? "" : " (no content change)"}.${warningLines.length ? `\n${warningLines.join("\n")}` : ""}`
       : `Anchored edit failed for ${result.path}:\n${result.errors.join("\n")}`
     return { content: [{ type: "text", text: summary }], structuredContent: adapterResult(result), isError: !result.ok }
   },

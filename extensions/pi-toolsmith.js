@@ -57,22 +57,22 @@ function readSummary(result) {
     : isFullFile
       ? `${lineCount} line(s)`
       : `lines ${result.startLine}–${result.endLine} of ${lineCount}`
-  return `Anchored read ${result.path} (${range}, ${result.anchors?.length || 0} anchor(s), hash ${result.fileHash}). Full anchored content is in details.text.`
+  return `Anchored read ${result.path} (${range}; ${result.anchors?.length || 0} anchor(s)).`
 }
 
 function searchSummary(result) {
   if (result.error) return `Anchored search ${result.path} failed for ${JSON.stringify(result.query)}: ${result.error}`
-  return `Anchored search ${result.path} matched ${result.matches?.length || 0}${result.truncated ? "+" : ""} line(s) for ${JSON.stringify(result.query)} (hash ${result.fileHash}). Full anchored snippets are in details.text.`
+  return `Anchored search ${result.path}: ${result.matches?.length || 0}${result.truncated ? "+" : ""} match(es) for ${JSON.stringify(result.query)}.`
 }
 
 function skeletonSummary(result) {
-  return `File skeleton ${result.path}: ${result.entries?.length || 0} entr${result.entries?.length === 1 ? "y" : "ies"} (hash ${result.fileHash}). Full anchored skeleton is in details.text.`
+  return `File skeleton ${result.path}: ${result.entries?.length || 0} entr${result.entries?.length === 1 ? "y" : "ies"}.`
 }
 
 function functionSummary(result) {
   return result.found
-    ? `Function ${result.name} in ${result.path}: lines ${result.startLine}–${result.endLine}${result.truncated ? "+" : ""} (hash ${result.fileHash}). Full anchored source is in details.text.`
-    : `Function ${result.name} not found in ${result.path} (hash ${result.fileHash}).`
+    ? `Function ${result.name} in ${result.path}: lines ${result.startLine}–${result.endLine}${result.truncated ? "+" : ""}.`
+    : `Function ${result.name} not found in ${result.path}.`
 }
 
 const editSchema = {
@@ -241,7 +241,7 @@ export default function toolsmithPiExtension(pi) {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await toolsFor(ctx?.cwd).symbolReplace(params)
       const text = result.ok
-        ? `${result.dryRun ? "Would replace" : "Replaced"} ${result.matches} match(es) in ${result.name} (${result.path}). ${result.beforeHash} -> ${result.afterHash}`
+        ? `${result.dryRun ? "Would replace" : "Replaced"} ${result.matches} match(es) in ${result.name} (${result.path}).`
         : result.notFound
           ? `No match in ${params.path}: ${result.errors.join("; ")} — try pi_get_function to inspect the current source.`
           : `Symbol replace failed for ${params.path}:\n${result.errors.join("\n")}`
@@ -274,7 +274,7 @@ export default function toolsmithPiExtension(pi) {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const result = await toolsFor(ctx?.cwd).edit(params)
       const text = result.ok
-        ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}. ${result.beforeHash} -> ${result.afterHash}`
+        ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}.`
         : `Anchored edit failed for ${result.path}:\n${result.errors.join("\n")}`
       return { content: [{ type: "text", text }], details: adapterResult(result), isError: !result.ok }
     },

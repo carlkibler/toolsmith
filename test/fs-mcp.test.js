@@ -181,6 +181,7 @@ test("MCP server lists and calls anchored tools", async () => {
     await fs.writeFile(path.join(cwd, "code.js"), "function demo() {\n  return 1\n}\n", "utf8")
     const skeleton = await client.callTool("file_skeleton", { path: "code.js", sessionId: "mcp" })
     assert.doesNotMatch(skeleton.content[0].text, /§function demo/)
+    assert.equal(skeleton.content[0].text, "File skeleton code.js: 1 entry.")
     assert.match(skeleton.structuredContent.text, /§function demo/)
 
     const fn = await client.callTool("get_function", { path: "code.js", name: "demo", sessionId: "mcp" })
@@ -210,6 +211,7 @@ test("MCP server lists and calls anchored tools", async () => {
 
     const read = await client.callTool("anchored_read", { path: "demo.txt", sessionId: "mcp" })
     assert.doesNotMatch(read.content[0].text, /§green/)
+    assert.equal(read.content[0].text, "Anchored read demo.txt (3 line(s); 3 anchor(s)).")
     const readText = read.structuredContent.text
     assert.match(readText, /§green/)
     const greenLine = readText.split("\n").find((line) => line.endsWith("§green"))
@@ -222,6 +224,7 @@ test("MCP server lists and calls anchored tools", async () => {
     assert.equal(edit.structuredContent.content, undefined)
     assert.equal(edit.structuredContent.anchors, undefined)
     assert.match(edit.content[0].text, /Applied 1 anchored edit/)
+    assert.doesNotMatch(edit.content[0].text, /[0-9a-f]{8} -> [0-9a-f]{8}/)
     assert.equal(await fs.readFile(path.join(cwd, "demo.txt"), "utf8"), "red\nGREEN\nblue")
 
     const usage = (await fs.readFile(usageLog, "utf8")).trim().split("\n").map((line) => JSON.parse(line))
