@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.35 — 2026-05-18
+
+- Quiet default MCP and Pi.dev tool summaries by removing implementation-detail payload hints and hash transitions while keeping full anchored content in structured payloads.
+
 ## 0.1.34 — 2026-05-13
 
 - Raise the installed Codex Stop footer hook timeout from 3s to 10s to avoid false timeout noise during intermittent transcript/disk stalls.
