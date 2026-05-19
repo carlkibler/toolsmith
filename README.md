@@ -4,7 +4,7 @@ Save tokens in AI agent sessions — surgical reads and exact edits for Claude C
 
 Native file tools send entire files into context. Toolsmith sends only what the agent needs, with stable line anchors that make edits fail loudly instead of silently clobbering changed files.
 
-**2.2M tokens avoided** in recent sessions. `find_and_anchor` averages ~70K tokens saved per call.
+**93% token reduction** in practice — 5.1M tokens avoided over 30 days across real agent sessions. `find_and_anchor` averages ~70K tokens saved per call. Run `toolsmith audit` to see your own numbers.
 
 ## Install
 
