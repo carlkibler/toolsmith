@@ -4,7 +4,9 @@ Save tokens in AI agent sessions — surgical reads and exact edits for Claude C
 
 Native file tools send entire files into context. Toolsmith sends only what the agent needs, with stable line anchors that make edits fail loudly instead of silently clobbering changed files.
 
-**93% token reduction** in practice — 5.1M tokens avoided over 30 days across real agent sessions. `find_and_anchor` averages ~70K tokens saved per call. Run `toolsmith audit` to see your own numbers.
+**88–93% token reduction per call** — measured across 1,500+ real agent sessions over 30 days (Codex, Claude Code, Gemini CLI, Pi.dev). When agents use toolsmith tools instead of native reads, they send 88–93% fewer tokens for that operation. `find_and_anchor` averages ~70K tokens saved per call.
+
+The catch: agents don't always reach for toolsmith. In a typical month, toolsmith intercepted roughly 18% of large-file operations — catching ~5.1M tokens of savings while an estimated ~23M more slipped through as native reads. Adoption is the lever. Run `toolsmith audit` to see your own numbers, and `toolsmith opportunities` to find where sessions used native reads that toolsmith could have handled.
 
 ## Install
 
