@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import path from "node:path"
 import { WorkspaceTools } from "../src/fs-tools.js"
+import { largeFileInfo, logTripwireFinding } from "../lib/tripwire.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const { version } = JSON.parse(readFileSync(path.join(__dirname, "..", "package.json"), "utf8"))
@@ -336,5 +337,26 @@ export default function toolsmithPiExtension(pi) {
         details: { cwd: ctx?.cwd || process.cwd(), workspaceKey: tools.workspaceKey, version, workspaceCacheSize: workspaces.size, workspaceCacheMax },
       }
     },
+  })
+
+  if (typeof pi.on !== "function") return
+
+  pi.on("tool_call", async (event, ctx) => {
+    const name = event?.tool?.name
+    if (!["read", "edit", "write"].includes(name)) return
+    const filePath = event?.input?.path || event?.input?.file
+    if (!filePath) return
+    const cwd = ctx?.cwd || process.cwd()
+    const info = largeFileInfo(filePath, cwd)
+    if (!info) return
+    const id = `pi-native-${name}-large-file`
+    const use = name === "read"
+      ? "pi_file_skeleton first, or pi_anchored_read with startLine/endLine for a targeted range"
+      : name === "write"
+        ? "pi_anchored_edit or pi_anchored_edit_many for existing files; write only for genuinely new files"
+        : "pi_anchored_search + pi_anchored_edit, or pi_symbol_replace for one function"
+    const msg = `Toolsmith Pi tripwire: ${info.displayFile} is >200 lines (${info.lines} lines). Use ${use}.`
+    logTripwireFinding({ id, toolName: name, displayFile: info.displayFile, lines: info.lines })
+    return { content: [{ type: "text", text: msg }] }
   })
 }

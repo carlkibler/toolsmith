@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import fs from "node:fs/promises"
+import { existsSync } from "node:fs"
 import path from "node:path"
 import test from "node:test"
 import extension from "../extensions/pi-toolsmith.js"
@@ -112,6 +113,65 @@ test("Pi get_function treats not-found as guidance, not a hard adapter error", a
 
   assert.equal(result.isError, false)
   assert.equal(result.details.found, false)
+})
+
+test("Pi tripwire fires on native read of large file and returns nudge", async () => {
+  const fires = []
+  let handlerResult = null
+  const pi = {
+    registerTool() {},
+    on(event, handler) {
+      if (event === "tool_call") {
+        this._handler = handler
+      }
+    },
+    async fireToolCall(event, ctx) {
+      return this._handler ? this._handler(event, ctx) : undefined
+    },
+  }
+  extension(pi)
+
+  const cwd = await tempWorkspace()
+  const large = path.join(cwd, "large.js")
+  await fs.writeFile(large, Array.from({ length: 220 }, (_, i) => `line${i}`).join("\n"), "utf8")
+  const small = path.join(cwd, "small.js")
+  await fs.writeFile(small, "line1\nline2\nline3", "utf8")
+
+  const logPath = path.join(cwd, "tripwire.jsonl")
+  const prev = process.env.TOOLSMITH_TRIPWIRE_LOG
+  process.env.TOOLSMITH_TRIPWIRE_LOG = logPath
+  try {
+    // Large file → should fire and return nudge
+    handlerResult = await pi.fireToolCall({ tool: { name: "read" }, input: { path: "large.js" } }, { cwd })
+    assert.ok(handlerResult, "handler should return a result for large file")
+    assert.match(handlerResult.content[0].text, /pi_file_skeleton/)
+    assert.match(handlerResult.content[0].text, /200 lines/)
+    const log = await fs.readFile(logPath, "utf8")
+    const row = JSON.parse(log.trim().split("\n").at(-1))
+    assert.equal(row.id, "pi-native-read-large-file")
+    assert.equal(row.toolName, "read")
+
+    // Small file → should not fire
+    handlerResult = await pi.fireToolCall({ tool: { name: "read" }, input: { path: "small.js" } }, { cwd })
+    assert.equal(handlerResult, undefined)
+
+    // Non-file tool → should not fire
+    handlerResult = await pi.fireToolCall({ tool: { name: "bash" }, input: { command: "ls" } }, { cwd })
+    assert.equal(handlerResult, undefined)
+
+    // pi_* tool → should not fire (name not read/edit/write)
+    handlerResult = await pi.fireToolCall({ tool: { name: "pi_anchored_read" }, input: { path: "large.js" } }, { cwd })
+    assert.equal(handlerResult, undefined)
+
+    // TOOLSMITH_TRIPWIRE_LOG=0 suppresses log writes
+    const logPath2 = path.join(cwd, "tripwire2.jsonl")
+    process.env.TOOLSMITH_TRIPWIRE_LOG = "0"
+    await pi.fireToolCall({ tool: { name: "edit" }, input: { path: "large.js" } }, { cwd })
+    assert.equal(existsSync(logPath2), false)
+  } finally {
+    if (prev === undefined) delete process.env.TOOLSMITH_TRIPWIRE_LOG
+    else process.env.TOOLSMITH_TRIPWIRE_LOG = prev
+  }
 })
 
 test("Pi extension multi-file tool validates before writing", async () => {
