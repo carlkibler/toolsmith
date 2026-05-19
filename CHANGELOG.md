@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.38 — 2026-05-19
+
+- Treat legacy Claude `tl-hook run` tripwire commands as old Toolsmith hooks so tripwire install/update caretakes stale config and replaces them with the current Toolsmith hook.
+
 ## 0.1.35 — 2026-05-18
 
 - Quiet default MCP and Pi.dev tool summaries by removing implementation-detail payload hints and hash transitions while keeping full anchored content in structured payloads.
