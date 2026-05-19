@@ -5,7 +5,7 @@ import { WorkspaceTools } from "../src/fs-tools.js"
 import { command, args, option, positionals } from "../lib/argv.js"
 import { packageInfo, MCP_BIN } from "../lib/config.js"
 import { runSetup, runAdopt, runUpdate } from "../lib/setup.js"
-import { runAudit, runAgentLogScan, runOpportunities, runAdoptionSnippet, runCharm } from "../lib/audit.js"
+import { runAudit, runAgentLogScan, runOpportunities, runAdoptionSnippet, runCharm, runTrends } from "../lib/audit.js"
 import { runDoctor } from "../lib/doctor.js"
 import { runPi } from "../lib/pi.js"
 import { runTripwire } from "../lib/tripwire.js"
@@ -39,6 +39,7 @@ Install / health
 
 Audit
   audit          [--days N] [--tail N] [--log PATH] [--json]  Summarize recent usage.
+  trends         [--days N] [--json] [--log PATH]           Per-week + per-client savings + interception rate.
   scan-agent-logs [--days N] [--json] [--markdown] [--remote HOST] [--max-examples N]
   opportunities  [--days N] [--json] [--remote HOST]      Lost-opportunity report.
   adoption-snippet [--client claude|codex|gemini|all]     Print CLAUDE.md snippet.
@@ -79,6 +80,8 @@ try {
     await runTripwire()
   } else if (command === "audit") {
     await runAudit()
+  } else if (command === "trends") {
+    await runTrends()
   } else if (command === "scan-agent-logs") {
     await runAgentLogScan()
   } else if (command === "opportunities") {

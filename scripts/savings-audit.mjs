@@ -8,6 +8,14 @@
  *
  * Usage:
  *   node scripts/savings-audit.mjs [--log /path/to/usage.jsonl] [--days N] [--json]
+ *                                   [--weekly] [--by-client]
+ *
+ * Flags:
+ *   --days N       window in days (default 30)
+ *   --weekly       show week-by-week savings trend
+ *   --by-client    show per-agent-client breakdown
+ *   --json         emit raw JSON instead of text
+ *   --log PATH     override usage.jsonl location
  */
 
 import fs from "node:fs"
@@ -24,6 +32,8 @@ const hasFlagVal = (f) => flagIdx(f) !== -1
 const LOG_PATH = flagVal("--log") ?? path.join(os.homedir(), ".local/state/toolsmith/usage.jsonl")
 const DAYS = parseInt(flagVal("--days") ?? "30", 10)
 const JSON_OUT = hasFlagVal("--json")
+const WEEKLY = hasFlagVal("--weekly")
+const BY_CLIENT = hasFlagVal("--by-client")
 const CUTOFF_MS = Date.now() - DAYS * 24 * 60 * 60 * 1000
 
 // Clients that are definitively real agents (never test harness)
@@ -101,7 +111,6 @@ function statsForRecords(records) {
     const median = pctPerCall[Math.floor(pctPerCall.length / 2)] ?? 0
     const positive = d.avoided.filter((v) => v > 0).length
 
-    // Distribution buckets
     const buckets = { "0–10%": 0, "10–50%": 0, "50–90%": 0, "90–99%": 0, "≥99%": 0 }
     for (const p of pctPerCall) {
       if (p < 10) buckets["0–10%"]++
@@ -146,16 +155,60 @@ function aggregate(stats) {
 }
 
 const agentAgg = aggregate(agentStats)
-const allRealAgg = aggregate(allRealStats)
+
+// ── time-series: weekly buckets ───────────────────────────────────────────────
+
+function weeklyBuckets(records, totalDays) {
+  const now = Date.now()
+  const weeks = Math.max(1, Math.ceil(totalDays / 7))
+  return Array.from({ length: weeks }, (_, i) => {
+    const end = now - i * 7 * 24 * 60 * 60 * 1000
+    const start = end - 7 * 24 * 60 * 60 * 1000
+    const bucket = records.filter((r) => {
+      const ts = r.ts ? new Date(r.ts).getTime() : 0
+      return ts >= start && ts < end
+    })
+    const d = new Date(start)
+    const label = `${d.getMonth() + 1}/${d.getDate()}–${new Date(end).getMonth() + 1}/${new Date(end).getDate()}`
+    const stats = statsForRecords(bucket)
+    const agg = aggregate(stats)
+    return { label, start, end, records: bucket.length, ...agg }
+  }).reverse()
+}
+
+// ── per-client stats ──────────────────────────────────────────────────────────
+
+function clientStats(records) {
+  const byClient = {}
+  for (const r of records) {
+    const client = r.client || "unknown"
+    if (!byClient[client]) byClient[client] = []
+    byClient[client].push(r)
+  }
+  return Object.entries(byClient)
+    .map(([client, recs]) => {
+      const stats = statsForRecords(recs)
+      const agg = aggregate(stats)
+      const topTool = Object.entries(stats).sort((a, b) => b[1].totalAvoided - a[1].totalAvoided)[0]?.[0] ?? "—"
+      return { client, records: recs.length, ...agg, topTool }
+    })
+    .sort((a, b) => b.totalAvoided - a.totalAvoided)
+}
 
 // ── output ────────────────────────────────────────────────────────────────────
 
 if (JSON_OUT) {
-  console.log(JSON.stringify({ host: os.hostname(), date: new Date().toISOString(), days: DAYS, log: LOG_PATH,
+  const weeks = WEEKLY ? weeklyBuckets(byClass.agent, DAYS) : null
+  const clients = BY_CLIENT ? clientStats(byClass.agent) : null
+  const allRealAgg = aggregate(allRealStats)
+  console.log(JSON.stringify({
+    host: os.hostname(), date: new Date().toISOString(), days: DAYS, log: LOG_PATH,
     classification: { agent: byClass.agent.length, harness: byClass["harness-workspace"].length,
       test: byClass.test.length, unknown: byClass.unknown.length },
     agentOnly: { ...agentAgg, byTool: agentStats },
     agentPlusUnknown: { ...allRealAgg, byTool: allRealStats },
+    weekly: weeks,
+    byClient: clients,
   }, null, 2))
   process.exit(0)
 }
@@ -163,6 +216,13 @@ if (JSON_OUT) {
 const n = (x) => Math.round(x).toLocaleString("en-US")
 const pct = (x) => x.toFixed(1) + "%"
 const bar = (p, w = 20) => "█".repeat(Math.round(p / 100 * w)).padEnd(w)
+const spark = (vals) => {
+  if (!vals.length) return ""
+  const max = Math.max(...vals)
+  if (max === 0) return "▁".repeat(vals.length)
+  const chars = "▁▂▃▄▅▆▇█"
+  return vals.map((v) => chars[Math.min(7, Math.floor((v / max) * 7))]).join("")
+}
 
 console.log(`\n${"─".repeat(72)}`)
 console.log(`  toolsmith savings audit  ·  ${os.hostname()}  ·  last ${DAYS} days`)
@@ -201,7 +261,6 @@ function printStats(label, stats, agg) {
       pct(s.medianPct).padStart(8),
     ]
     console.log(`  ${row.join(" ")}`)
-    // Distribution bar
     const b = s.buckets
     const total = Object.values(b).reduce((a, x) => a + x, 0)
     if (total > 0) {
@@ -230,12 +289,74 @@ function printStats(label, stats, agg) {
 
 printStats("PRIMARY: known agent clients only", agentStats, agentAgg)
 
+// ── per-client breakdown ──────────────────────────────────────────────────────
+
+if (BY_CLIENT) {
+  const clients = clientStats(byClass.agent)
+  console.log(`${"─".repeat(72)}`)
+  console.log(`PER-CLIENT BREAKDOWN  (agent records only)`)
+  console.log(`${"─".repeat(72)}\n`)
+  const hdr = `  ${"client".padEnd(30)} ${"calls".padStart(6)} ${"agg%".padStart(7)} ${"avoided".padStart(10)} ${"top tool".padStart(20)}`
+  console.log(hdr)
+  console.log(`  ${"-".repeat(73)}`)
+  for (const c of clients) {
+    const row = [
+      c.client.padEnd(30),
+      c.records.toString().padStart(6),
+      pct(c.pct).padStart(7),
+      n(c.totalAvoided).padStart(10),
+      c.topTool.padStart(20),
+    ]
+    console.log(`  ${row.join(" ")}`)
+  }
+  console.log()
+}
+
+// ── weekly trend ──────────────────────────────────────────────────────────────
+
+if (WEEKLY) {
+  const weeks = weeklyBuckets(byClass.agent, DAYS)
+  console.log(`${"─".repeat(72)}`)
+  console.log(`WEEKLY TREND  (${DAYS} days → ${weeks.length} week${weeks.length === 1 ? "" : "s"})`)
+  console.log(`${"─".repeat(72)}\n`)
+
+  const avoidedVals = weeks.map((w) => w.totalAvoided)
+  const callVals = weeks.map((w) => w.calls)
+  console.log(`  savings spark: ${spark(avoidedVals)}  (tokens avoided per week)`)
+  console.log(`  calls spark:   ${spark(callVals)}  (calls with telemetry per week)\n`)
+
+  const hdr = `  ${"week".padEnd(14)} ${"calls".padStart(6)} ${"pct".padStart(7)} ${"avoided".padStart(11)} ${"full".padStart(11)}`
+  console.log(hdr)
+  console.log(`  ${"-".repeat(52)}`)
+  for (const w of weeks) {
+    const row = [
+      w.label.padEnd(14),
+      w.calls.toString().padStart(6),
+      (w.calls > 0 ? pct(w.pct) : "—").padStart(7),
+      n(w.totalAvoided).padStart(11),
+      n(w.totalFull).padStart(11),
+    ]
+    console.log(`  ${row.join(" ")}`)
+  }
+  console.log()
+
+  if (weeks.length >= 2) {
+    const recent = weeks.at(-1)
+    const prior = weeks.at(-2)
+    const delta = recent.totalAvoided - prior.totalAvoided
+    const sign = delta >= 0 ? "+" : ""
+    console.log(`  week-over-week: ${sign}${n(delta)} tokens avoided  (${sign}${Math.round(delta / Math.max(prior.totalAvoided, 1) * 100)}%)\n`)
+  }
+}
+
+// ── sensitivity check ─────────────────────────────────────────────────────────
+
 if (byClass.unknown.length > 0) {
-  console.log(`\n${"─".repeat(72)}`)
+  const allRealAgg = aggregate(allRealStats)
+  console.log(`${"─".repeat(72)}`)
   console.log(`SENSITIVITY CHECK: agent + unknown clients combined`)
   console.log(`(unknown client = MCP server started in a way that didn't send clientInfo)`)
   console.log(`${"─".repeat(72)}`)
-  const combined = aggregate(allRealStats)
-  console.log(`  aggregate: ${n(combined.totalAvoided)} / ${n(combined.totalFull)} = ${pct(combined.pct)} reduction`)
+  console.log(`  aggregate: ${n(allRealAgg.totalAvoided)} / ${n(allRealAgg.totalFull)} = ${pct(allRealAgg.pct)} reduction`)
   console.log(`  (vs ${pct(agentAgg.pct)} for known-agent-only)\n`)
 }
