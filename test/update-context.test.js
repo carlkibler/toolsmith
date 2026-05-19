@@ -28,6 +28,10 @@ exit 0
 `)
   await fs.chmod(path.join(binDir, "npm"), 0o755)
   await fs.writeFile(path.join(globalBinDir, "toolsmith"), `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "9.9.9"
+  exit 0
+fi
 printf '%s\n' "$@" >> "$TOOLSMITH_SETUP_LOG"
 exit 0
 `)
