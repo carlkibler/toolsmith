@@ -431,3 +431,16 @@ test("WorkspaceTools findAndAnchor glob ** matches root and nested files", async
   assert(result.matches.some((match) => match.path === "root.js"))
   assert(result.matches.some((match) => match.path === "nested/child.js"))
 })
+
+test("MCP anchored_read summary includes savings hint for partial reads of large files", async () => {
+  const cwd = await tempWorkspace()
+  const lines = Array.from({ length: 200 }, (_, i) => `line${i + 1} content with extra padding text here`)
+  await fs.writeFile(path.join(cwd, "large.txt"), lines.join("\n"), "utf8")
+  const client = await McpTestClient.start(path.resolve("bin/toolsmith-mcp.js"), cwd)
+  try {
+    const read = await client.callTool("anchored_read", { path: "large.txt", sessionId: "savings", startLine: 1, endLine: 5 })
+    assert.match(read.content[0].text, /saved ~[0-9]+ tokens/, "partial read of large file must include savings hint")
+  } finally {
+    await client.close()
+  }
+})

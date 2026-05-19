@@ -374,6 +374,45 @@ test("Codex token footer is quiet by default and opt-in with env", async () => {
   }
 })
 
+test("Codex footer scanMisses detects apply_patch and sed-n misses", async () => {
+  const { home } = await seedHomeWithCodexConfig()
+  try {
+    await execFileAsync(
+      process.execPath,
+      [CLI, "setup", "--no-smoke", "--force", "--no-priming"],
+      { cwd: home, env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin" } },
+    )
+    const stateDir = path.join(home, ".local", "state", "toolsmith")
+    await fs.mkdir(stateDir, { recursive: true })
+    const script = path.join(home, ".codex", "hooks", "toolsmith-token-footer.sh")
+
+    const transcript = path.join(home, "session.jsonl")
+    const applyRow = JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "apply_patch", input: "*** Update File: lib/big.py\n@@ -1,3 +1,3 @@" } })
+    const sedRow = JSON.stringify({ type: "response_item", payload: { type: "function_call", name: "exec_command", arguments: JSON.stringify({ cmd: "sed -n '1,300p' lib/foo.py" }) } })
+    await fs.writeFile(transcript, applyRow + "\n" + sedRow + "\n", "utf8")
+
+    const result = await execFileAsync("bash", ["-c", "printf '%s' \"$2\" | \"$1\"", "bash", script, JSON.stringify({ transcript_path: transcript })], {
+      env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin", TOOLSMITH_CODEX_FOOTER: "1" },
+    })
+    const lines = result.stdout.trim().split("\n")
+    const missLine = lines.find((l) => l.startsWith("Toolsmith:"))
+    assert.ok(missLine, "must print a miss nudge line")
+    assert.match(missLine, /2 large-file miss/)
+    assert.match(missLine, /apply_patch/)
+    assert.match(missLine, /shell sed/)
+
+    // Empty transcript → no miss line
+    await fs.writeFile(transcript, "", "utf8")
+    const clean = await execFileAsync("bash", ["-c", "printf '%s' \"$2\" | \"$1\"", "bash", script, JSON.stringify({ transcript_path: transcript })], {
+      env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin", TOOLSMITH_CODEX_FOOTER: "1" },
+    })
+    const cleanLines = clean.stdout.trim().split("\n")
+    assert.equal(cleanLines.filter((l) => l.startsWith("Toolsmith:")).length, 0, "no miss line for empty transcript")
+  } finally {
+    await fs.rm(home, { recursive: true, force: true })
+  }
+})
+
 
 test("setup --no-codex-footer skips Codex footer hook", async () => {
   const { home } = await seedHomeWithCodexConfig()
@@ -439,6 +478,8 @@ test("setup: injects priming block into ~/.claude/CLAUDE.md", async () => {
     const content = await fs.readFile(claudeMd, "utf8")
     assert.match(content, /<!-- toolsmith:begin -->/, "priming sentinel must be present")
     assert.match(content, /mcp__toolsmith__file_skeleton/, "priming block content must include file_skeleton")
+    assert.match(content, /apply_patch.*>200-line|>200-line.*apply_patch/s, "priming must include Codex apply_patch guidance")
+    assert.match(content, /sed -n.*anchored_read|anchored_read.*sed -n/s, "priming must redirect Codex sed -n to anchored_read")
     assert.match(content, /<!-- toolsmith:end -->/, "end sentinel must be present")
     assert.match(content, /some existing content/, "original content must be preserved")
   } finally {
