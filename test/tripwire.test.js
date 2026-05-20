@@ -92,16 +92,26 @@ test("tripwire log summary tolerates missing and malformed rows", async () => {
 test("tripwire install is idempotent and remove cleans the Claude hook", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-tripwire-home-"))
   try {
-    await execFileAsync(process.execPath, [CLI, "tripwire", "install", "--client", "claude"], {
-      env: { ...process.env, HOME: home },
-    })
-    await execFileAsync(process.execPath, [CLI, "tripwire", "install", "--client", "claude"], {
-      env: { ...process.env, HOME: home },
-    })
     const settingsPath = path.join(home, ".claude", "settings.json")
+    await fs.mkdir(path.dirname(settingsPath), { recursive: true })
+    await fs.writeFile(settingsPath, JSON.stringify({
+      hooks: {
+        PreToolUse: [
+          { matcher: "Read", hooks: [{ type: "command", command: "tl-hook run", timeout: 3000 }] },
+        ],
+      },
+    }, null, 2) + "\n", "utf8")
+
+    await execFileAsync(process.execPath, [CLI, "tripwire", "install", "--client", "claude"], {
+      env: { ...process.env, HOME: home },
+    })
+    await execFileAsync(process.execPath, [CLI, "tripwire", "install", "--client", "claude"], {
+      env: { ...process.env, HOME: home },
+    })
     const settings = JSON.parse(await fs.readFile(settingsPath, "utf8"))
     const tripwireHooks = settings.hooks.PreToolUse.flatMap((entry) => entry.hooks).filter((hook) => hook.command.includes("toolsmith-tripwire"))
     assert.equal(tripwireHooks.length, 1)
+    assert.equal(JSON.stringify(settings.hooks).includes("tl-hook run"), false)
     assert.match(settings.hooks.PreToolUse[0].matcher, /Read/)
 
     await execFileAsync(process.execPath, [CLI, "tripwire", "remove"], { env: { ...process.env, HOME: home } })
