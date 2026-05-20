@@ -29,7 +29,10 @@ function envEnabled(value) {
 }
 
 function toolContent(result, summary) {
-  return [{ type: "text", text: verboseOutput() ? result.text : summary }]
+  if (verboseOutput()) return [{ type: "text", text: result.text }]
+  const saved = result?.telemetry?.estimatedTokensAvoided
+  const text = saved > 0 ? `${summary} (saved ~${Math.round(saved)} tokens)` : summary
+  return [{ type: "text", text }]
 }
 
 function adapterResult(result) {
