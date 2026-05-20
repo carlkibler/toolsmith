@@ -212,6 +212,7 @@ export class UsageLogger {
   async toolCall({ tool, args, result, error, errorStack, durationMs }) {
     await this.write({
       event: "tool_call",
+      version: this.version,
       tool,
       durationMs,
       args: summarizeArgs(args),
@@ -300,6 +301,8 @@ export function summarizeUsage(records) {
     agentWorkspaceNames: {},
     harnessWorkspaceNames: {},
     estimatedTokensAvoided: 0,
+    estimatedFullTokens: 0,
+    tokensByVersion: {},
     agentEstimatedTokensAvoided: 0,
     telemetryCalls: 0,
     agentTelemetryCalls: 0,
@@ -384,6 +387,15 @@ export function summarizeUsage(records) {
             summary.agentTokensAvoidedByTool[record.tool || "unknown"] = (summary.agentTokensAvoidedByTool[record.tool || "unknown"] || 0) + telemetry.estimatedTokensAvoided
           }
         }
+      }
+      const telFull = record.result?.telemetry?.estimatedFullTokens
+      if (telFull) summary.estimatedFullTokens += telFull
+      const ver = record.version || "unknown"
+      if (!summary.tokensByVersion[ver]) summary.tokensByVersion[ver] = { avoided: 0, full: 0, calls: 0 }
+      summary.tokensByVersion[ver].calls++
+      if (telemetry) {
+        summary.tokensByVersion[ver].avoided += telemetry.estimatedTokensAvoided || 0
+        summary.tokensByVersion[ver].full += telemetry.estimatedFullTokens || 0
       }
       if (/edit|replace/.test(record.tool || "")) summary.editCalls++
       if (record.result?.changed) summary.changedCalls++
