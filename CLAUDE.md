@@ -44,6 +44,21 @@ Default to low-risk hooks that create feedback or nudge at the point of failure,
 - Avoid by default: SessionStart/PostCompact-style context injection that strongly insists on Toolsmith every new/resumed/compacted session; it risks noise, duplication, and token cost.
 - Durable priming belongs in `CLAUDE.md` / `AGENTS.md`; hooks should prove value or intervene only when behavior drifts.
 
+## Self-Containment Doctrine (NON-NEGOTIABLE)
+
+**Toolsmith must be fully self-contained. It owns every file it expects a harness to touch — providing, updating, and maintaining that file across every machine and harness it supports. Toolsmith must NEVER cause a user-facing error because it forgot to ship its own file.**
+
+Concretely, for any agent working on Toolsmith:
+
+- **If Toolsmith causes a harness to reference a file** (a hook script, a config snippet, a binary path), Toolsmith's `setup`/`update` path MUST install that file and keep it current. No exceptions, no "it'll get copied somehow."
+- **No dangling references.** Never wire a `settings.json` / `hooks.json` / `config.toml` entry that points at a path Toolsmith does not itself create and verify on that machine. A reference whose target may not exist is a bug, even if it "works on my machine".
+- **No install-by-manual-copy.** If a file only reaches a machine because someone `scp`'d it once, it is not installed. Provisioning must be reproducible from `toolsmith setup`/`update` alone.
+- **Do not scatter files into shared/global harness locations you don't manage** (e.g. global `~/.claude/hooks/`). Either install + own them end-to-end, or keep them inside the Toolsmith repo/package.
+- **Dev-only artifacts stay clearly dev-only.** Helper hooks for developing Toolsmith live in `dev/claude-hooks/` (not published, not auto-installed) — see that README. Never give them a name or path that implies "install me" (the old `templates/.claude/hooks/` did, and it errored on every machine that never got the manual copy — bead `toolsmith-z7e`).
+- **Verify on every supported target.** A fix isn't done until you've confirmed the file exists and runs on each machine/harness Toolsmith claims to support, not just the one you're typing on.
+
+The test: *"If a fresh machine runs only `toolsmith setup`, will every file Toolsmith references exist and work?"* If the answer is "no" or "only after a manual step", the change is incomplete.
+
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
