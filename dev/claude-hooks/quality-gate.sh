@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 #
+# Part of Toolsmith (dev-only validation hook — NOT auto-installed).
+# Source:  https://github.com/carlkibler/toolsmith
+# Package: https://www.npmjs.com/package/@carlkibler/toolsmith
+#
 # Stop hook: Quality Gate + Structured Learning Extraction
 #
 # On every stop:
