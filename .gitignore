@@ -20,6 +20,9 @@ node_modules/
 .claude/hooks/
 .worktrees/
 
+# Local Codex config (per-developer, do not publish)
+.codex/
+
 # beads-compound: persist knowledge across machines
 !.beads/memory/
 !.beads/memory/**
