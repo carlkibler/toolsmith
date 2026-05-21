@@ -58,6 +58,18 @@ test("priming block embeds provenance inside the toolsmith sentinels", async () 
   }
 })
 
+test("every committed dev hook script carries the provenance header", async () => {
+  const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dev", "claude-hooks")
+  const scripts = (await fs.readdir(dir)).filter((name) => name.endsWith(".sh"))
+  assert.ok(scripts.length > 0, "expected at least one dev hook script")
+  for (const name of scripts) {
+    const body = await fs.readFile(path.join(dir, name), "utf8")
+    assert.ok(body.includes(TOOLSMITH_REPO_URL), `${name} must name the repo`)
+    assert.ok(body.includes(TOOLSMITH_NPM_URL), `${name} must name the package`)
+    assert.ok(body.includes("Part of Toolsmith"), `${name} must declare it is part of Toolsmith`)
+  }
+})
+
 test("installed Claude tripwire hook command carries provenance", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-prov-tw-"))
   try {
