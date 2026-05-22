@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.40 — 2026-05-21
+
+- Stamp provenance on every artifact Toolsmith installs into a user/project area (Codex footer script and hook command, Claude tripwire hook command, `CLAUDE.md`/`AGENTS.md` priming block, Codex `config.toml` MCP entry) via a shared `lib/provenance.js`, declaring Toolsmith ownership with links to the GitHub repo and npm package.
+- Add a NON-NEGOTIABLE self-containment doctrine to `CLAUDE.md`: Toolsmith must provide, update, and manage any file it expects a harness to access, must never leave a dangling reference to a file it does not install, and must stamp provenance on every installed artifact.
+- Move the dev-only validation hooks out of the misleading `templates/.claude/hooks/` path to `dev/claude-hooks/` (never auto-installed) so a global config can no longer reference a script nothing installs.
+
 ## 0.1.38 — 2026-05-19
 
 - Treat legacy Claude `tl-hook run` tripwire commands as old Toolsmith hooks so tripwire install/update caretakes stale config and replaces them with the current Toolsmith hook.
