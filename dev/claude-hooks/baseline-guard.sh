@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 #
+# Part of Toolsmith (dev-only validation hook — NOT auto-installed).
+# Source:  https://github.com/carlkibler/toolsmith
+# Package: https://www.npmjs.com/package/@carlkibler/toolsmith
+#
 # SessionStart hook (and standalone): Baseline Guard
 #
 # When an in-progress bead exists and a test command is detectable:

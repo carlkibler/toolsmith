@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 #
+# Part of Toolsmith (dev-only validation hook — NOT auto-installed).
+# Source:  https://github.com/carlkibler/toolsmith
+# Package: https://www.npmjs.com/package/@carlkibler/toolsmith
+#
 # PostToolUse(Edit|Write) hook: Cheap Watcher
 #
 # An adversarial cheap-model co-pilot that watches every edit.
