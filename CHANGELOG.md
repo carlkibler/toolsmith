@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Emit Claude tripwire hook output using only the current `hookSpecificOutput` envelope, avoiding rejected legacy top-level hook fields in newer Claude Code builds.
+
 ## 0.1.40 — 2026-05-21
 
 - Stamp provenance on every artifact Toolsmith installs into a user/project area (Codex footer script and hook command, Claude tripwire hook command, `CLAUDE.md`/`AGENTS.md` priming block, Codex `config.toml` MCP entry) via a shared `lib/provenance.js`, declaring Toolsmith ownership with links to the GitHub repo and npm package.
