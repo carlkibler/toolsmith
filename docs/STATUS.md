@@ -1,6 +1,6 @@
 # Project Status
 
-Updated: 2026-05-12 (Codex hooks flag migration)
+Updated: 2026-05-25 (Claude tripwire hook schema fix)
 
 ## What exists now
 
@@ -29,7 +29,7 @@ Implemented pieces:
   - `update` — installs the latest GitHub release package and refreshes MCP registrations plus the opt-in Codex footer by default (`--from PATH` opts into local checkout installs; `--no-setup` skips refresh; `--no-codex-footer` skips only the footer)
   - `scan-agent-logs`, `opportunities` (with token savings estimates), and `adoption-snippet` for adoption/lost-opportunity analysis
   - `audit` — shows estimated tokens saved by toolsmith AND estimated missed savings from native ops side-by-side
-  - `tripwire` — optional native-use advisory hook for Claude Code; logs fires and prints Codex activation guidance
+  - `tripwire` — optional native-use advisory hook for Claude Code; logs fires, emits the current Claude `hookSpecificOutput` JSON envelope, and prints Codex activation guidance
   - `mcp`
 - MCP server in `bin/toolsmith-mcp.js`
   - `anchored_read`
@@ -60,7 +60,8 @@ Implemented pieces:
 
 Local automated checks:
 
-- `npm run check` passes: 131 tests
+- `npm run check` passes: 184 tests
+- `tripwire run --format claude` smoke emits only the current `hookSpecificOutput` root object
 - `npm pack --dry-run` succeeds and includes `bin/`, `docs/`, `extensions/`, `scripts/`, and `src/`
 - `npm run test:harnesses -- --skip-local` succeeds
 
