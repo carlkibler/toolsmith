@@ -527,18 +527,34 @@ test("setup --no-priming: skips priming injection", async () => {
   }
 })
 
-test("setup --tripwire installs Claude hook without priming", async () => {
+test("setup installs the tripwire BY DEFAULT (adaptive mode)", async () => {
   const { home } = await seedHomeWithCodexConfig()
   try {
     const result = await execFileAsync(
       process.execPath,
-      [CLI, "setup", "--no-smoke", "--force", "--no-priming", "--tripwire"],
+      [CLI, "setup", "--no-smoke", "--force", "--no-priming"],
       { cwd: home, env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin" } },
     ).catch((err) => ({ stdout: err.stdout || "" }))
-    const settingsPath = path.join(home, ".claude", "settings.json")
-    const settings = JSON.parse(await fs.readFile(settingsPath, "utf8"))
-    assert.match(result.stdout || "", /Toolsmith tripwire: installed/)
+    const settings = JSON.parse(await fs.readFile(path.join(home, ".claude", "settings.json"), "utf8"))
+    assert.match(result.stdout || "", /Toolsmith tripwire: installed \(mode: adaptive\)/)
     assert.equal(JSON.stringify(settings.hooks).includes("toolsmith-tripwire"), true)
+  } finally {
+    await fs.rm(home, { recursive: true, force: true })
+  }
+})
+
+test("setup --no-tripwire skips the hook", async () => {
+  const { home } = await seedHomeWithCodexConfig()
+  try {
+    await execFileAsync(
+      process.execPath,
+      [CLI, "setup", "--no-smoke", "--force", "--no-priming", "--no-tripwire"],
+      { cwd: home, env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin" } },
+    ).catch((err) => ({ stdout: err.stdout || "" }))
+    // settings.json may not exist at all (no tripwire, no priming, no claude CLI to register MCP)
+    // — either way, no tripwire hook must be present.
+    const raw = await fs.readFile(path.join(home, ".claude", "settings.json"), "utf8").catch(() => "{}")
+    assert.equal(raw.includes("toolsmith-tripwire"), false)
   } finally {
     await fs.rm(home, { recursive: true, force: true })
   }

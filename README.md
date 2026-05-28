@@ -58,8 +58,9 @@ Toolsmith edits config, so here's exactly what it touches. Everything is idempot
 |------|-------|---------|------|
 | MCP server registration | Per detected client: `claude mcp add`, `~/.codex/config.toml`, `~/.gemini`, `~/.cursor/mcp.json`, and others — only clients you have | on | re-run `setup`; or remove the MCP entry per client |
 | Preference hint block | `~/.claude/CLAUDE.md`, plus `~/.codex/AGENTS.md` / `~/.gemini/GEMINI.md` / `~/AGENTS.md` if present (HTML-comment fenced) | on | `toolsmith adopt --remove` |
+| Re-prime SessionStart hook | `~/.claude/settings.json` — re-asserts the rule at session start + after compaction | on (with priming); `--no-priming` skips | `toolsmith tripwire remove` |
 | Codex session footer | `~/.codex/config.toml` hook | on, inert unless `TOOLSMITH_CODEX_FOOTER=1` | `toolsmith setup --no-codex-footer` |
-| PreToolUse tripwire | `~/.claude/settings.json` | off (`--tripwire`) | `toolsmith adopt --tripwire --remove` |
+| PreToolUse tripwire | `~/.claude/settings.json` | **on (adaptive)** — `--no-tripwire` to skip, `--tripwire-mode` to fix | `toolsmith tripwire remove` |
 
 Skip pieces: `toolsmith setup --no-priming --no-codex-footer`. Before editing a config file, setup writes a recoverable copy next to it (`<file>.toolsmith-bak`) — `mv` it back to undo.
 
@@ -124,15 +125,37 @@ toolsmith setup                           # installs footer (opt-in via env)
 TOOLSMITH_CODEX_FOOTER=1 codex "..."     # enable for a session
 ```
 
-**Claude PreToolUse tripwire** — intercepts native `Read`/`Edit`/`Write` on large files and steers the agent to Toolsmith. Three escalation levels:
+## The tripwire (adaptive, on by default)
 
-```bash
-toolsmith tripwire install                 # allow (default): nudge, don't block
-toolsmith tripwire install --mode ask      # prompt before each native large-file op
-toolsmith tripwire install --mode deny     # block native large-file ops, force Toolsmith
+`setup` installs a Claude `PreToolUse` hook that watches native `Read`/`Edit`/`Write` and shell `cat`/`sed`/`nl` on large files. By default it's **adaptive**: it tracks how often an agent bypasses Toolsmith in a session and gets firmer the longer it's ignored.
+
+```
+1st–2nd bypass   → nudge  (a message with the token cost; your normal permission flow still runs)
+3rd–5th bypass   → ask    (Claude prompts before the native op)
+6th+ bypass      → deny   (native edit blocked; agent must use a Toolsmith tool)
 ```
 
-`allow` just reminds. `ask`/`deny` push adoption harder — use `deny` when you want the agent to *always* go through Toolsmith on big files. Override per-session with `TOOLSMITH_TRIPWIRE_MODE=deny`. The hook always fails open: if anything goes wrong it allows the operation, never blocks you by accident.
+Built-in safety rails so it never walls off legitimate work: **reads never hard-block** (they cap at `ask` — you might genuinely need a full read of a file Toolsmith can't parse, like a lockfile or minified bundle); a **Write that creates a new file never blocks** (only `Write` can create a file); the nudge **never auto-approves** the native op (your own permission prompts still run); and escalation only applies within a real session, resetting fresh each time.
+
+Compliant agents never feel it; token-burning ones get redirected. Fix the firmness instead of escalating, or turn it off:
+
+```bash
+toolsmith setup --tripwire-mode allow   # always nudge, never block
+toolsmith setup --tripwire-mode deny    # block native large-file ops from the first one
+toolsmith setup --no-tripwire           # don't install the hook
+toolsmith tripwire remove               # remove it later
+```
+
+Override per-session with `TOOLSMITH_TRIPWIRE_MODE=allow|ask|deny|adaptive`; tune thresholds with `TOOLSMITH_TRIPWIRE_ASK_AFTER` / `TOOLSMITH_TRIPWIRE_DENY_AFTER`. The hook always **fails open** — if anything goes wrong it allows the operation, never blocks you by accident.
+
+## Opt-in extras
+
+**Codex Stop footer** — prints token savings and large-file miss counts at the end of each Codex session:
+
+```bash
+toolsmith setup                           # installs footer (opt-in via env)
+TOOLSMITH_CODEX_FOOTER=1 codex "..."     # enable for a session
+```
 
 ## Node.js library
 
