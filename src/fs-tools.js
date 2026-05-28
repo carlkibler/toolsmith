@@ -245,9 +245,23 @@ export class WorkspaceTools {
         await this.#cleanupStaged(staged.map((s) => s.write))
         throw error
       }
-      // Phase 2: commit renames (metadata-only; failure here is rare and per-file).
-      for (const { entry, write } of staged) {
-        await this.#commitStaged(write)
+      // Phase 2: commit renames. These are metadata-only and near-atomic, but a failure
+      // mid-loop (cross-device, ENOSPC, a racing process) can leave a PREFIX of files
+      // committed. We can't roll back an already-renamed file, so on failure we clean up
+      // every still-uncommitted temp (no leaks) and throw an error that names exactly which
+      // files were committed vs. left unchanged — the caller must know the partial state.
+      const committed = []
+      for (let i = 0; i < staged.length; i += 1) {
+        const { entry, write } = staged[i]
+        try {
+          await this.#commitStaged(write)
+        } catch (error) {
+          await this.#cleanupStaged(staged.slice(i + 1).map((s) => s.write))
+          const done = committed.map((e) => e.item.path)
+          const undone = staged.slice(i).map((s) => s.entry.item.path)
+          throw new Error(`${error.message} — partial edit_many: committed [${done.join(", ")}], left unchanged [${undone.join(", ")}]`)
+        }
+        committed.push(entry)
         entry.item.anchors = this.store.reconcile(entry.item.path, entry.item.content, { sessionId: entry.item.sessionId || sessionId, workspaceKey: this.workspaceKey })
       }
     }
