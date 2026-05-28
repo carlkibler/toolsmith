@@ -108,12 +108,23 @@ export function formatAgentLogScanMarkdown(scan) {
   ].join("\n")
 }
 
+// Rough, explicitly-modeled estimate of tokens that slipped past Toolsmith. These are
+// assumptions, not measurements — surfaced in the output so the number can't read as fact:
+//   AVG_TOKENS_PER_LINE: a source line averages ~12.5 tokens (≈50 chars at ~4 chars/token).
+//   REDUCIBLE_FRACTION:  ~70% of a whole-file read is avoidable with a targeted read.
+//   USD_PER_MTOK:        a representative input price; vary it for your own model.
+// Measured per-call savings (from telemetry) live in `toolsmith audit`; this is the
+// session-log "what we missed" projection and is deliberately conservative-ish.
+const AVG_TOKENS_PER_LINE = 12.5
+const REDUCIBLE_FRACTION = 0.7
+const USD_PER_MTOK = 15
+
 export function lostTokenSavingsEstimate(lostLines) {
   if (!lostLines) return null
-  const transferred = Math.round(lostLines * 12.5)
-  const saved = Math.round(transferred * 0.7)
-  const usd = (saved / 1_000_000 * 15).toFixed(2)
-  return `~${(transferred / 1000).toFixed(0)}k ctx tokens; toolsmith saves ~${(saved / 1000).toFixed(0)}k (~$${usd} at $15/M)`
+  const transferred = Math.round(lostLines * AVG_TOKENS_PER_LINE)
+  const saved = Math.round(transferred * REDUCIBLE_FRACTION)
+  const usd = (saved / 1_000_000 * USD_PER_MTOK).toFixed(2)
+  return `~${(transferred / 1000).toFixed(0)}k ctx tokens; est. toolsmith saves ~${(saved / 1000).toFixed(0)}k (~$${usd} at $${USD_PER_MTOK}/M, assumes ${AVG_TOKENS_PER_LINE} tok/line × ${REDUCIBLE_FRACTION} reducible)`
 }
 
 export function formatOpportunitiesText(scan) {
@@ -137,7 +148,7 @@ export function formatOpportunitiesText(scan) {
 }
 
 export function adoptionSnippet(client = "all") {
-  const block = `## Toolsmith large-file rule\n\nToolsmith is the default path for code navigation and surgical edits on files likely over 200 lines. Use native Read/Edit/Write, shell \`cat\`, \`nl\`, or broad \`sed -n\` only for genuinely small files, command output, or unavailable Toolsmith tools.\n\n- Explore structure first: \`file_skeleton\`\n- Find editable matches: \`find_and_anchor\` or \`anchored_search\`\n- Read one known symbol: \`get_function\`\n- Read a precise range: \`anchored_read --start/--end\`\n- Edit anchored lines: \`anchored_edit\` or \`anchored_edit_many\`\n- Single-symbol replacement: \`symbol_replace\`\n\nIf a native large-file read already happened, switch to Toolsmith before editing so anchors, validation, and telemetry exist.`
+  const block = `## Toolsmith large-file rule (token discipline)\n\nFor any file over ~200 lines, you MUST use Toolsmith (\`mcp__toolsmith__*\`) for navigation and edits. Do NOT use native Read/Edit/Write or shell \`cat\`/\`nl\`/\`sed -n\` on the whole file. Reading a large file natively burns 10–40× the tokens and throws away the line anchors that make edits safe. Native tools are only for genuinely small files, command output, or when Toolsmith is unavailable.\n\n- Explore structure first: \`file_skeleton\`\n- Find editable matches: \`find_and_anchor\` or \`anchored_search\`\n- Read one known symbol: \`get_function\`\n- Read a precise range: \`anchored_read --start/--end\`\n- Edit anchored lines: \`anchored_edit\` or \`anchored_edit_many\`\n- Single-symbol replacement: \`symbol_replace\`\n\nIf a native large-file read already happened, switch to Toolsmith before editing so anchors, validation, and telemetry exist.`
 
   const codex = `${block}\n\nCodex shell habit replacements:\n- \`sed -n '1,260p' big.js\` -> \`anchored_read\` with a narrower range, or \`file_skeleton\` first\n- \`rg pattern && sed -n ...\` -> \`find_and_anchor\`\n- \`apply_patch\` on a large file is allowed, but prefer \`anchored_edit\` when changing lines already found by Toolsmith.`
   const claude = `${block}\n\nClaude tool habit replacements:\n- Native Read on >200 lines -> \`file_skeleton\`, \`get_function\`, or bounded \`anchored_read\`\n- Native Edit/Write on >200 lines -> read anchors first, then \`anchored_edit\`\n- For one function/class body, \`symbol_replace\` is the fastest path.`

@@ -9,6 +9,7 @@ import { runAudit, runAgentLogScan, runOpportunities, runAdoptionSnippet, runCha
 import { runDoctor } from "../lib/doctor.js"
 import { runPi } from "../lib/pi.js"
 import { runTripwire } from "../lib/tripwire.js"
+import { cachedUpdateStatus, maybeScheduleRefresh, runUpdateRefresh, updateCheckDisabled, updateNoticeText } from "../lib/update-check.js"
 
 {
   const major = Number(process.versions.node.split(".")[0])
@@ -61,6 +62,8 @@ Edit primitives (for agents via MCP — prefer mcp__toolsmith__* over CLI in age
 try {
   if (command === "--version" || command === "-v") {
     console.log(packageInfo().version || "unknown")
+  } else if (command === "_update-refresh") {
+    await runUpdateRefresh() // hidden: detached daily worker spawned by maybeScheduleRefresh
   } else if (command === "mcp") {
     await import("./toolsmith-mcp.js")
   } else if (command === "--print-context") {
@@ -210,4 +213,18 @@ try {
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))
   process.exitCode = 1
+}
+
+// Unobtrusive update awareness: cache-only notice on an interactive terminal (stderr, so it
+// never corrupts the JSON/text that edit primitives print to stdout) + a once/day detached
+// refresh. Skipped for the MCP server, the refresh worker itself, CI, and opt-outs.
+if (command !== "mcp" && command !== "_update-refresh" && !updateCheckDisabled()) {
+  try {
+    if (process.stderr.isTTY && cachedUpdateStatus(packageInfo().version)?.behind) {
+      const { installContext } = await import("../lib/config.js")
+      const notice = updateNoticeText(packageInfo().version, { kind: installContext().kind })
+      if (notice) process.stderr.write(`\n${notice}\n`)
+    }
+    maybeScheduleRefresh()
+  } catch { /* update awareness is best-effort, never fatal */ }
 }
