@@ -4,6 +4,7 @@ import fs from "node:fs/promises"
 import { readFileSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 import test from "node:test"
 import {
   cachedUpdateStatus,
@@ -51,13 +52,22 @@ test("cachedUpdateStatus reports behind/current from cache only", async () => {
   })
 })
 
-test("updateNoticeText is install-kind aware", async () => {
+test("updateNoticeText recommends the command matching the install channel", async () => {
+  const prevBrew = process.env.HOMEBREW_PREFIX
   await withState(() => {
     writeUpdateCache({ latest: "0.1.50", checkedAt: 1 })
-    assert.match(updateNoticeText("0.1.41", { kind: "npm-global" }), /Run: toolsmith update/)
-    assert.match(updateNoticeText("0.1.41", { kind: "git-checkout" }), /Run: git pull/)
+    // npm and git checkouts: not under Homebrew → npm/git commands.
+    delete process.env.HOMEBREW_PREFIX
+    assert.match(updateNoticeText("0.1.41", { kind: "npm-global" }), /Run: toolsmith update$/)
+    assert.match(updateNoticeText("0.1.41", { kind: "git-checkout" }), /Run: git pull$/)
     assert.equal(updateNoticeText("0.1.50", { kind: "npm-global" }), null) // up to date
+    // Homebrew install (this module lives under the package root): brew upgrade, not npm.
+    const pkgRoot = path.resolve(fileURLToPath(import.meta.url), "..", "..")
+    process.env.HOMEBREW_PREFIX = pkgRoot
+    assert.match(updateNoticeText("0.1.41", { kind: "npm-global" }), /Run: brew upgrade carlkibler\/tap\/toolsmith$/)
   })
+  if (prevBrew === undefined) delete process.env.HOMEBREW_PREFIX
+  else process.env.HOMEBREW_PREFIX = prevBrew
 })
 
 test("updateNoticeSuffix is empty when up to date", async () => {
