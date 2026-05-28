@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.43 — 2026-05-28
 
 Adoption — the tripwire is now an active, self-correcting adoption engine:
 - **Adaptive escalation (new default):** the tripwire counts how often an agent bypasses Toolsmith with a native large-file op in a session and gets firmer the longer it's ignored — nudge (allow) → ask → deny (defaults: ask after 3, deny after 6, tunable via `TOOLSMITH_TRIPWIRE_ASK_AFTER`/`_DENY_AFTER`). Compliant agents never feel it; a fresh session starts gentle. A fixed `--mode` opts out.
