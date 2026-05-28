@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+Robustness:
+- Preserve a file's line endings on edits. `anchored_edit`/`anchored_edit_many`/`symbol_replace` no longer silently rewrite a CRLF file to LF (which turned a 1-line change into a whole-file diff on Windows/CRLF repos). New `detectEol()` + EOL-aware rejoin.
+- `anchored_edit_many` is now atomic across files: every file is staged to a temp before any rename, so a mid-batch write failure (disk full, permission flip) leaves zero files changed instead of a half-applied refactor.
+- `looksBinary` scans the whole buffer for NUL (a NUL is valid UTF-8, so the old 8KB-prefix check could read NUL-bearing files as text).
+- Tripwire fails OPEN on any error and resolves node via an absolute path with a PATH fallback (no nvm dependency). A tripwire bug or missing runtime can no longer block your Read/Edit/Bash by returning a non-zero PreToolUse exit.
+
+Adoption:
+- Tripwire escalation modes: `allow` (nudge, default) / `ask` (prompt) / `deny` (block native large-file ops and force a Toolsmith tool). Set via `toolsmith tripwire install --mode` or `TOOLSMITH_TRIPWIRE_MODE`. Sharper, action-forward nudges.
+- Stronger preference-hint priming: an imperative MUST-rule with the token-cost rationale.
+- "Update available" notifier on the CLI (stderr, interactive only), the MCP server (stderr), and the tripwire nudge. Cache-only on the hot path; at most one detached npm-registry check per day; install-kind and Homebrew aware. Never auto-applies. Opt out with `TOOLSMITH_NO_UPDATE_CHECK=1`.
+
+Distribution:
+- Homebrew tap (`brew install carlkibler/tap/toolsmith`), tested on macOS and Linux. Release pipeline auto-bumps the formula after npm publish (gated on `HOMEBREW_TAP_TOKEN`).
+- README: Homebrew install, a "what setup changes on your machine" footprint table, a promoted Privacy section, an Uninstall section, and the audit→opportunities→tripwire→re-audit loop.
+
+Transparency:
+- Lost-savings projection now names its constants and labels them as assumptions in the output, so the estimate can't read as a measurement. Measured per-call savings remain in `toolsmith audit`.
+
 ## 0.1.41 — 2026-05-28
 
 - Fix the Claude tripwire `PreToolUse` hook output failing newer Claude Code's strict JSON schema validation (`(root): Invalid input`). Drop the off-schema top-level `decision: "allow"` (that field only accepts `approve`/`block`); the decision lives in `hookSpecificOutput.permissionDecision`.
