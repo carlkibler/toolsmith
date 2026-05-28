@@ -37,7 +37,8 @@ test("tripwire run --mode deny blocks a native large-file op", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-mode-"))
   try {
     const file = await makeLargeFile(dir)
-    const payload = JSON.stringify({ tool_name: "Read", tool_input: { file_path: file } })
+    // cwd = dir so the file is inside the workspace (otherwise the catch-22 guard downgrades deny).
+    const payload = JSON.stringify({ tool_name: "Read", tool_input: { file_path: file }, cwd: dir })
     const result = runTripwire(payload, ["--mode", "deny"])
     assert.equal(result.status, 0)
     const out = JSON.parse(result.stdout)
@@ -53,7 +54,7 @@ test("tripwire run reads a fixed mode from env; default is adaptive (first fire 
   const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-mode-state-"))
   try {
     const file = await makeLargeFile(dir)
-    const payload = JSON.stringify({ tool_name: "Read", tool_input: { file_path: file }, session_id: "env-test" })
+    const payload = JSON.stringify({ tool_name: "Read", tool_input: { file_path: file }, cwd: dir, session_id: "env-test" })
     const ask = JSON.parse(runTripwire(payload, [], { TOOLSMITH_TRIPWIRE_MODE: "ask", TOOLSMITH_STATE_DIR: state }).stdout)
     assert.equal(ask.hookSpecificOutput.permissionDecision, "ask")
     // No mode set → adaptive; an isolated fresh session's first fire is a gentle allow (no decision).
@@ -100,8 +101,8 @@ test("adaptive mode (the default) escalates allow → ask → deny across a sess
   const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-esc-state-"))
   try {
     const file = await makeLargeFile(dir)
-    // Edit on an EXISTING large file can escalate all the way to deny.
-    const payload = JSON.stringify({ tool_name: "Edit", tool_input: { file_path: file }, session_id: "esc-test" })
+    // Edit on an EXISTING in-workspace large file can escalate all the way to deny.
+    const payload = JSON.stringify({ tool_name: "Edit", tool_input: { file_path: file }, cwd: dir, session_id: "esc-test" })
     const decisions = []
     for (let i = 0; i < 6; i += 1) {
       const r = spawnSync(process.execPath, [CLI, "tripwire", "run", "--format", "claude"], {
@@ -126,7 +127,7 @@ test("adaptive never hard-blocks a READ — caps at ask even after many bypasses
   const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-read-cap-state-"))
   try {
     const file = await makeLargeFile(dir)
-    const payload = JSON.stringify({ tool_name: "Read", tool_input: { file_path: file }, session_id: "read-cap" })
+    const payload = JSON.stringify({ tool_name: "Read", tool_input: { file_path: file }, cwd: dir, session_id: "read-cap" })
     let last = "allow"
     for (let i = 0; i < 10; i += 1) {
       last = decisionOf(spawnSync(process.execPath, [CLI, "tripwire", "run", "--format", "claude"], {
@@ -154,6 +155,41 @@ test("adaptive never blocks a Write to a not-yet-existing file (only Write can c
         input: payload, encoding: "utf8",
         env: { ...process.env, TOOLSMITH_STATE_DIR: state, TOOLSMITH_TRIPWIRE_LOG: "0", TOOLSMITH_NO_UPDATE_CHECK: "1" },
       }).stdout), "allow")
+    }
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+    await fs.rm(state, { recursive: true, force: true })
+  }
+})
+
+test("adaptive never blocks an edit OUTSIDE the workspace (toolsmith can't reach it → no catch-22)", async () => {
+  const fileDir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-oow-file-"))
+  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-oow-cwd-"))
+  const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-oow-state-"))
+  try {
+    const file = await makeLargeFile(fileDir) // lives outside workDir
+    // session cwd is workDir; the target file is elsewhere → toolsmith would refuse it.
+    const payload = JSON.stringify({ tool_name: "Edit", tool_input: { file_path: file }, cwd: workDir, session_id: "oow" })
+    for (let i = 0; i < 10; i += 1) {
+      assert.notEqual(decisionOf(runTripwire(payload, [], { TOOLSMITH_STATE_DIR: state, TOOLSMITH_NO_UPDATE_CHECK: "1" }).stdout), "deny", `out-of-workspace edit must never deny (fire ${i + 1})`)
+    }
+  } finally {
+    await fs.rm(fileDir, { recursive: true, force: true })
+    await fs.rm(workDir, { recursive: true, force: true })
+    await fs.rm(state, { recursive: true, force: true })
+  }
+})
+
+test("adaptive never blocks an edit on a file larger than toolsmith's read limit", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-big-"))
+  const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-big-state-"))
+  try {
+    const file = path.join(dir, "huge.js")
+    // > 512 KB and > 200 lines: toolsmith refuses to read it, so the tripwire must not block.
+    await fs.writeFile(file, Array.from({ length: 600 }, (_, i) => `const x${i} = "${"y".repeat(1000)}"`).join("\n"))
+    const payload = JSON.stringify({ tool_name: "Edit", tool_input: { file_path: file }, cwd: dir, session_id: "big" })
+    for (let i = 0; i < 10; i += 1) {
+      assert.notEqual(decisionOf(runTripwire(payload, [], { TOOLSMITH_STATE_DIR: state, TOOLSMITH_NO_UPDATE_CHECK: "1" }).stdout), "deny", `oversized edit must never deny (fire ${i + 1})`)
     }
   } finally {
     await fs.rm(dir, { recursive: true, force: true })

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.44 — 2026-05-28
+
+- Fix a tripwire catch-22: it no longer escalates to `ask`/`deny` for a file Toolsmith can't actually reach — one **outside the workspace** (its MCP tools refuse paths outside cwd) or **larger than its read limit**. Blocking those redirected the agent to a tool that would also refuse the file, with no valid way forward. Now they stay a nudge (`allow`) in every mode, including a fixed `--mode deny`. Found by dogfooding: a live agent hit `deny` editing `~/.claude/settings.json` from a project workspace.
+
 ## 0.1.43 — 2026-05-28
 
 Adoption — the tripwire is now an active, self-correcting adoption engine:
