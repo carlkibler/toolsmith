@@ -1,5 +1,6 @@
 import {
   ANCHOR_DELIMITER,
+  detectEol,
   formatAnchoredLine,
   splitAnchorReference,
   splitLines,
@@ -47,7 +48,7 @@ export function applyAnchoredEdits({ path, content, store, sessionId, workspaceK
     applied.push({ type: edit.type, anchor: edit.anchor, endAnchor: edit.endAnchor, linesAdded: edit.replacementLines.length, linesDeleted: edit.deleteCount })
   }
 
-  const nextContent = nextLines.join("\n")
+  const nextContent = nextLines.join(detectEol(content))
   const nextAnchors = commitAnchors ? store.reconcile(path, nextContent, { sessionId, workspaceKey }) : []
 
   return { ok: errors.length === 0, content: nextContent, errors, warnings, applied: applied.reverse(), anchors: nextAnchors }

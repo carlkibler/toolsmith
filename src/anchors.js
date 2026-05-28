@@ -163,6 +163,18 @@ export function splitLines(content) {
   return content.length === 0 ? [] : content.split(/\r?\n/)
 }
 
+// Detect the dominant line ending so edits round-trip a file's existing style
+// instead of silently converting CRLF → LF (which would diff the whole file).
+// splitLines() discards the delimiter; callers rejoin with this. Trailing-newline
+// state survives via the empty final element that split() leaves on a terminated file.
+export function detectEol(content) {
+  const text = String(content ?? "")
+  const lf = (text.match(/\n/g) || []).length
+  if (lf === 0) return "\n"
+  const crlf = (text.match(/\r\n/g) || []).length
+  return crlf > lf - crlf ? "\r\n" : "\n"
+}
+
 export function formatAnchoredLine(anchor, line) {
   return `${anchor}${ANCHOR_DELIMITER}${line}`
 }

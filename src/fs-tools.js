@@ -233,11 +233,22 @@ export class WorkspaceTools {
 
     const writable = errors.length > 0 ? prepared.filter((entry) => entry.item.ok) : prepared
     if (!dryRun) {
-      for (const entry of writable) {
-        if (entry.item.changed) {
-          await this.#openAndWrite(entry.absolute, entry.item.content)
-          entry.item.anchors = this.store.reconcile(entry.item.path, entry.item.content, { sessionId: entry.item.sessionId || sessionId, workspaceKey: this.workspaceKey })
+      const changedEntries = writable.filter((entry) => entry.item.changed)
+      // Phase 1: stage every file's temp. If any fails, remove all temps and abort —
+      // nothing is committed, so the batch is all-or-nothing at the write boundary.
+      const staged = []
+      try {
+        for (const entry of changedEntries) {
+          staged.push({ entry, write: await this.#stageWrite(entry.absolute, entry.item.content) })
         }
+      } catch (error) {
+        await this.#cleanupStaged(staged.map((s) => s.write))
+        throw error
+      }
+      // Phase 2: commit renames (metadata-only; failure here is rare and per-file).
+      for (const { entry, write } of staged) {
+        await this.#commitStaged(write)
+        entry.item.anchors = this.store.reconcile(entry.item.path, entry.item.content, { sessionId: entry.item.sessionId || sessionId, workspaceKey: this.workspaceKey })
       }
     }
 
@@ -307,7 +318,11 @@ export class WorkspaceTools {
     }
   }
 
-  async #openAndWrite(absolute, content) {
+  // Two-phase write: #stageWrite does all the failure-prone work (validate, write temp,
+  // fsync) and #commitStaged does only the near-atomic rename. editMany stages every file
+  // before committing any, so a content-write failure (disk full, permission flip) leaves
+  // ZERO files changed instead of a half-applied multi-file refactor.
+  async #stageWrite(absolute, content) {
     const contentBytes = Buffer.byteLength(content, "utf8")
     if (contentBytes > this.maxBytes) throw new Error(`edit result exceeds size limit (${contentBytes} bytes > ${this.maxBytes}); split into smaller edits`)
 
@@ -323,20 +338,41 @@ export class WorkspaceTools {
     const dir = path.dirname(absolute)
     const base = path.basename(absolute)
     const temp = path.join(dir, `.${base}.toolsmith-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`)
+    const mode = stats.mode & 0o777
     let fd
     try {
-      fd = await fs.open(temp, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL, stats.mode & 0o777)
+      fd = await fs.open(temp, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL, mode)
       await fd.writeFile(content, "utf8")
       await fd.sync()
       await fd.close()
       fd = null
-      await fs.rename(temp, absolute)
-      await fs.chmod(absolute, stats.mode & 0o777).catch(() => {})
     } catch (e) {
       if (fd) await fd.close().catch(() => {})
       await fs.rm(temp, { force: true }).catch(() => {})
       throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
     }
+    return { absolute, temp, mode }
+  }
+
+  async #commitStaged(staged) {
+    try {
+      await fs.rename(staged.temp, staged.absolute)
+      await fs.chmod(staged.absolute, staged.mode).catch(() => {})
+    } catch (e) {
+      await fs.rm(staged.temp, { force: true }).catch(() => {})
+      throw new Error(`${path.relative(this.cwd, staged.absolute)}: ${e.message}`)
+    }
+  }
+
+  async #cleanupStaged(stagedList) {
+    for (const staged of stagedList) {
+      await fs.rm(staged.temp, { force: true }).catch(() => {})
+    }
+  }
+
+  async #openAndWrite(absolute, content) {
+    const staged = await this.#stageWrite(absolute, content)
+    await this.#commitStaged(staged)
   }
 }
 
@@ -361,6 +397,7 @@ function assertEditBudget(edits, maxBytes) {
 }
 
 function looksBinary(buffer) {
-  const sample = buffer.subarray(0, Math.min(buffer.length, 8192))
-  return sample.includes(0) || !isUtf8(buffer)
+  // Scan the whole (size-capped) buffer for NUL — a NUL byte is valid UTF-8 (U+0000),
+  // so isUtf8() alone would happily accept a file the editor treats as binary.
+  return buffer.includes(0) || !isUtf8(buffer)
 }
