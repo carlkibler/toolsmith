@@ -58,6 +58,7 @@ Toolsmith edits config, so here's exactly what it touches. Everything is idempot
 |------|-------|---------|------|
 | MCP server registration | Per detected client: `claude mcp add`, `~/.codex/config.toml`, `~/.gemini`, `~/.cursor/mcp.json`, and others — only clients you have | on | re-run `setup`; or remove the MCP entry per client |
 | Preference hint block | `~/.claude/CLAUDE.md`, plus `~/.codex/AGENTS.md` / `~/.gemini/GEMINI.md` / `~/AGENTS.md` if present (HTML-comment fenced) | on | `toolsmith adopt --remove` |
+| Re-prime SessionStart hook | `~/.claude/settings.json` — re-asserts the rule at session start + after compaction | on (with priming); `--no-priming` skips | `toolsmith tripwire remove` |
 | Codex session footer | `~/.codex/config.toml` hook | on, inert unless `TOOLSMITH_CODEX_FOOTER=1` | `toolsmith setup --no-codex-footer` |
 | PreToolUse tripwire | `~/.claude/settings.json` | **on (adaptive)** — `--no-tripwire` to skip, `--tripwire-mode` to fix | `toolsmith tripwire remove` |
 
