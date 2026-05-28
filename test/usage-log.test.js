@@ -54,12 +54,27 @@ test("usage summary separates live harness noise from real agent calls", () => {
   assert.deepEqual(summary.agentWorkspaceNames, { memedex: 1 })
   assert.deepEqual(summary.harnessWorkspaceNames, { "codex-workspace": 1, "toolsmith-a1b2": 1 })
   assert.equal(summary.agentEstimatedTokensAvoided, 2500)
+  assert.equal(summary.agentReadTokensAvoided, 2500) // anchored_read is read-family
+  assert.equal(summary.agentEditTokensAvoided, 0)
   assert.equal(summary.agentPositiveSavingsCalls, 1)
   assert.equal(summary.latestAgentToolCallTs, "2026-05-05T00:03:00.000Z")
 
   assert.equal(isLikelyHarnessRecord(records[4]), true)
   assert.equal(isLikelyHarnessRecord(records[5]), false)
   assert.equal(isLikelyHarnessRecord({ client: "codex", event: "tool_call", tool: "file_skeleton", args: { path: "code.js", sessionId: "task" } }), true)
+})
+
+test("summarizeUsage splits read-family vs edit-family tokens avoided", () => {
+  const records = [
+    { ts: "2026-05-05T00:00:00.000Z", event: "tool_call", client: "claude", cwdName: "proj", tool: "anchored_read", args: { sessionId: "s" }, result: { telemetry: { fullBytes: 9000, estimatedTokensAvoided: 1800 } } },
+    { ts: "2026-05-05T00:01:00.000Z", event: "tool_call", client: "claude", cwdName: "proj", tool: "find_and_anchor", args: { sessionId: "s" }, result: { telemetry: { fullBytes: 9000, estimatedTokensAvoided: 1200 } } },
+    { ts: "2026-05-05T00:02:00.000Z", event: "tool_call", client: "claude", cwdName: "proj", tool: "anchored_edit", args: { sessionId: "s" }, result: { telemetry: { fullBytes: 9000, estimatedTokensAvoided: 500 } } },
+    { ts: "2026-05-05T00:03:00.000Z", event: "tool_call", client: "claude", cwdName: "proj", tool: "symbol_replace", args: { sessionId: "s" }, result: { telemetry: { fullBytes: 9000, estimatedTokensAvoided: 300 } } },
+  ]
+  const summary = summarizeUsage(records)
+  assert.equal(summary.agentReadTokensAvoided, 3000) // 1800 + 1200
+  assert.equal(summary.agentEditTokensAvoided, 800) //  500 + 300 (upper bound, kept out of headline)
+  assert.equal(summary.agentEstimatedTokensAvoided, 3800) // gross still = read + edit
 })
 
 test("UsageLogger.setClient updates client for subsequent writes", async () => {

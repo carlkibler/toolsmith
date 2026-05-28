@@ -115,9 +115,9 @@ export function formatAgentLogScanMarkdown(scan) {
 //   USD_PER_MTOK:        a representative input price; vary it for your own model.
 // Measured per-call savings (from telemetry) live in `toolsmith audit`; this is the
 // session-log "what we missed" projection and is deliberately conservative-ish.
-const AVG_TOKENS_PER_LINE = 12.5
-const REDUCIBLE_FRACTION = 0.7
-const USD_PER_MTOK = 15
+export const AVG_TOKENS_PER_LINE = 12.5
+export const REDUCIBLE_FRACTION = 0.7
+export const USD_PER_MTOK = 15
 
 export function lostTokenSavingsEstimate(lostLines) {
   if (!lostLines) return null
