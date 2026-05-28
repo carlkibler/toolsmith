@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.1.41 — 2026-05-28
 
-- Emit Claude tripwire hook output using only the current `hookSpecificOutput` envelope, avoiding rejected legacy top-level hook fields in newer Claude Code builds.
+- Fix the Claude tripwire `PreToolUse` hook output failing newer Claude Code's strict JSON schema validation (`(root): Invalid input`). Drop the off-schema top-level `decision: "allow"` (that field only accepts `approve`/`block`); the decision lives in `hookSpecificOutput.permissionDecision`.
+- Emit only documented `PreToolUse` fields: surface the nudge via top-level `systemMessage` and move it out of `hookSpecificOutput`, where `systemMessage` is undocumented and would break the same way if Claude Code tightens validation of that object.
 
 ## 0.1.40 — 2026-05-21
 

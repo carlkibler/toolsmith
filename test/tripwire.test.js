@@ -54,10 +54,13 @@ test("tripwire run emits Claude hook JSON and logs fired nudges", async () => {
     })
     assert.equal(result.status, 0)
     const out = JSON.parse(result.stdout)
-    assert.deepEqual(Object.keys(out), ["hookSpecificOutput"])
+    // Only documented PreToolUse fields: top-level systemMessage + hookSpecificOutput.
+    assert.deepEqual(Object.keys(out).sort(), ["hookSpecificOutput", "systemMessage"])
+    assert.match(out.systemMessage, /anchored_edit/)
+    assert.equal(out.hookSpecificOutput.hookEventName, "PreToolUse")
     assert.equal(out.hookSpecificOutput.permissionDecision, "allow")
     assert.match(out.hookSpecificOutput.permissionDecisionReason, /anchored_edit/)
-    assert.match(out.hookSpecificOutput.systemMessage, /anchored_edit/)
+    assert.equal(out.hookSpecificOutput.systemMessage, undefined)
     const rows = (await fs.readFile(logPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line))
     assert.equal(rows[0].id, "native-edit-large-file")
   } finally {
