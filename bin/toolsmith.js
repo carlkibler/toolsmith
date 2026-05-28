@@ -25,8 +25,8 @@ function usage() {
   console.error(`Usage: toolsmith <command> [options]
 
 Install / health
-  setup|install  [--scope user|project|local] [--force] [--global] [--no-smoke] [--no-priming] [--no-summary] [--no-codex-footer] [--tripwire]
-                 Register MCP with Claude Code, Codex, and Gemini. Injects preference hints.
+  setup|install  [--scope user|project|local] [--force] [--global] [--no-smoke] [--no-priming] [--no-summary] [--no-codex-footer] [--no-tripwire] [--tripwire-mode adaptive|allow|ask|deny]
+                 Register MCP with Claude Code, Codex, and Gemini. Injects preference hints and installs the adaptive tripwire (--no-tripwire to skip).
   adopt          --inject | --remove
                  Add or remove toolsmith preference block from CLAUDE.md / AGENTS.md.
   doctor|doc     [--fix [--yes]] [--smoke] [--online] [--live-agent]
