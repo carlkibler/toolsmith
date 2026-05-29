@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The "update available" notice now recommends the command matching how you installed: `brew upgrade carlkibler/tap/toolsmith` for Homebrew installs, `git pull` for checkouts, `toolsmith update` for npm — instead of always saying `toolsmith update` (which shells out to npm and would shadow a Homebrew copy).
+
 ## 0.1.42 — 2026-05-28
 
 Robustness:
