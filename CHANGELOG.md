@@ -2,7 +2,14 @@
 
 ## Unreleased
 
-- The "update available" notice now recommends the command matching how you installed: `brew upgrade carlkibler/tap/toolsmith` for Homebrew installs, `git pull` for checkouts, `toolsmith update` for npm — instead of always saying `toolsmith update` (which shells out to npm and would shadow a Homebrew copy).
+Adoption — the tripwire is now an active, self-correcting adoption engine:
+- **Adaptive escalation (new default):** the tripwire counts how often an agent bypasses Toolsmith with a native large-file op in a session and gets firmer the longer it's ignored — nudge (allow) → ask → deny (defaults: ask after 3, deny after 6, tunable via `TOOLSMITH_TRIPWIRE_ASK_AFTER`/`_DENY_AFTER`). Compliant agents never feel it; a fresh session starts gentle. A fixed `--mode` opts out.
+- **On by default:** `toolsmith setup` now installs the tripwire (was opt-in). `--no-tripwire` to skip, `--tripwire-mode` to fix the firmness.
+- **Visceral nudges:** the nudge shows the real cost ("… is 1697 lines (~12K tokens to read whole) … a targeted read is a fraction of that").
+- **Re-priming after compaction:** a SessionStart hook (installed with priming) re-asserts the "use mcp__toolsmith__* for large files" rule on startup/compact, so it doesn't fade as a long session's context is summarized.
+- The "update available" notice now recommends the command matching how you installed: `brew upgrade carlkibler/tap/toolsmith` for Homebrew, `git pull` for checkouts, `toolsmith update` for npm.
+
+Note: existing users who `toolsmith update` will get the tripwire installed (adaptive) on the re-run of setup. Disable with `toolsmith setup --no-tripwire` or `toolsmith tripwire remove`.
 
 ## 0.1.42 — 2026-05-28
 
