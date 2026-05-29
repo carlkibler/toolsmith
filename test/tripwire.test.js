@@ -50,17 +50,16 @@ test("tripwire run emits Claude hook JSON and logs fired nudges", async () => {
     const result = spawnSync(process.execPath, [CLI, "tripwire", "run", "--format", "claude"], {
       input: payload,
       encoding: "utf8",
-      env: { ...process.env, TOOLSMITH_TRIPWIRE_LOG: logPath },
+      // Fresh state dir → adaptive's first fire is a gentle "allow" (deterministic).
+      env: { ...process.env, TOOLSMITH_TRIPWIRE_LOG: logPath, TOOLSMITH_STATE_DIR: dir },
     })
     assert.equal(result.status, 0)
     const out = JSON.parse(result.stdout)
-    // Only documented PreToolUse fields: top-level systemMessage + hookSpecificOutput.
-    assert.deepEqual(Object.keys(out).sort(), ["hookSpecificOutput", "systemMessage"])
+    // A nudge (allow) emits ONLY systemMessage and sets no permissionDecision, so the user's
+    // own permission flow still runs (no silent auto-approve of the native op).
+    assert.deepEqual(Object.keys(out).sort(), ["systemMessage"])
     assert.match(out.systemMessage, /anchored_edit/)
-    assert.equal(out.hookSpecificOutput.hookEventName, "PreToolUse")
-    assert.equal(out.hookSpecificOutput.permissionDecision, "allow")
-    assert.match(out.hookSpecificOutput.permissionDecisionReason, /anchored_edit/)
-    assert.equal(out.hookSpecificOutput.systemMessage, undefined)
+    assert.equal(out.hookSpecificOutput, undefined)
     const rows = (await fs.readFile(logPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line))
     assert.equal(rows[0].id, "native-edit-large-file")
   } finally {
