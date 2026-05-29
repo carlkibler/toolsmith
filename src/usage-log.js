@@ -304,6 +304,15 @@ export function summarizeUsage(records) {
     estimatedFullTokens: 0,
     tokensByVersion: {},
     agentEstimatedTokensAvoided: 0,
+    // Read-family savings (file_skeleton/get_function/anchored_read/_search/find_and_anchor)
+    // use a defensible counterfactual: the agent really would have read the whole file.
+    // Edit-family savings (anchored_edit/_many/symbol_replace) credit the whole pre-edit
+    // file, which overstates — a native edit transfers only the changed region — so they're
+    // tracked separately and kept OUT of the headline number rather than inflating it.
+    readTokensAvoided: 0,
+    editTokensAvoided: 0,
+    agentReadTokensAvoided: 0,
+    agentEditTokensAvoided: 0,
     telemetryCalls: 0,
     agentTelemetryCalls: 0,
     positiveSavingsCalls: 0,
@@ -378,13 +387,18 @@ export function summarizeUsage(records) {
           summary.agentMaxFullBytes = Math.max(summary.agentMaxFullBytes, telemetry.fullBytes || 0)
         }
         if (telemetry.estimatedTokensAvoided) {
+          const isEditTool = /edit|replace/.test(record.tool || "")
           summary.estimatedTokensAvoided += telemetry.estimatedTokensAvoided
           summary.positiveSavingsCalls++
           summary.tokensAvoidedByTool[record.tool || "unknown"] = (summary.tokensAvoidedByTool[record.tool || "unknown"] || 0) + telemetry.estimatedTokensAvoided
+          if (isEditTool) summary.editTokensAvoided += telemetry.estimatedTokensAvoided
+          else summary.readTokensAvoided += telemetry.estimatedTokensAvoided
           if (!harness) {
             summary.agentEstimatedTokensAvoided += telemetry.estimatedTokensAvoided
             summary.agentPositiveSavingsCalls++
             summary.agentTokensAvoidedByTool[record.tool || "unknown"] = (summary.agentTokensAvoidedByTool[record.tool || "unknown"] || 0) + telemetry.estimatedTokensAvoided
+            if (isEditTool) summary.agentEditTokensAvoided += telemetry.estimatedTokensAvoided
+            else summary.agentReadTokensAvoided += telemetry.estimatedTokensAvoided
           }
         }
       }
