@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.47 — 2026-05-29
+
+The tripwire default is now **nudge-only**, and prompts are always haltable:
+
+- **Default mode is `allow` (nudge), not `adaptive`.** The default never prompts or blocks — it just suggests Toolsmith at the moment of choice. `adaptive`/`ask`/`deny` are opt-in via `--tripwire-mode`. Rationale: a `PreToolUse` `ask`/`deny` overrides allow-rules and can't be dismissed per-project, so escalation-by-default reads as a broken, un-haltable tool on a real multi-file project. Nudge-only is the right first impression; the firmer push is there when you ask for it.
+- **`bypassPermissions` downgrades every mode to a nudge.** If you've opted out of all prompts, the tripwire respects that instead of overriding it (the classic "hook still asks in bypass mode" trap). Applies even to a fixed `--mode deny`.
+
 ## 0.1.46 — 2026-05-29
 
 - Fix: `toolsmith tripwire install --mode allow` and `setup --tripwire-mode allow` baked a hook command with **no** `--mode` flag, which then fell back to the runtime default (`adaptive`) — so asking for `allow` silently produced an *asking* hook. The mode is now always written explicitly. (Found in the field: an adaptive tripwire kept prompting in a project even after the operator tried to set it to nudge-only.)
