@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.46 — 2026-05-29
+
+- Fix: `toolsmith tripwire install --mode allow` and `setup --tripwire-mode allow` baked a hook command with **no** `--mode` flag, which then fell back to the runtime default (`adaptive`) — so asking for `allow` silently produced an *asking* hook. The mode is now always written explicitly. (Found in the field: an adaptive tripwire kept prompting in a project even after the operator tried to set it to nudge-only.)
+
 ## 0.1.45 — 2026-05-28
 
 Make the adaptive tripwire safe to ship to any project — it was too eager to hard-block:

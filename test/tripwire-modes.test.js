@@ -295,18 +295,39 @@ test("install/remove never deletes an unrelated user hook that mentions 'tripwir
   }
 })
 
-test("install --mode deny bakes the mode into the hook command", async () => {
-  const home = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-home-"))
+test("install bakes the EXPLICIT mode for allow/deny/adaptive (never omits it)", async () => {
+  // Regression: omitting --mode for "allow" fell back to the adaptive runtime default,
+  // so `install --mode allow` silently produced an asking hook. Every mode must be baked.
+  for (const mode of ["allow", "deny", "adaptive"]) {
+    const home = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-home-"))
+    try {
+      const r = spawnSync(process.execPath, [CLI, "tripwire", "install", "--client", "claude", "--mode", mode], {
+        env: { ...process.env, HOME: home },
+        encoding: "utf8",
+      })
+      assert.equal(r.status, 0)
+      const settings = JSON.parse(await fs.readFile(path.join(home, ".claude", "settings.json"), "utf8"))
+      const cmd = settings.hooks.PreToolUse.flatMap((e) => e.hooks).map((h) => h.command).join("\n")
+      assert.match(cmd, new RegExp(`tripwire run --format claude --mode ${mode}\\b`), `install --mode ${mode} must bake it`)
+    } finally {
+      await fs.rm(home, { recursive: true, force: true })
+    }
+  }
+})
+
+test("a baked --mode allow hook never asks, even after many bypasses (end-to-end)", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-allowbake-"))
+  const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-allowbake-state-"))
   try {
-    const r = spawnSync(process.execPath, [CLI, "tripwire", "install", "--client", "claude", "--mode", "deny"], {
-      env: { ...process.env, HOME: home },
-      encoding: "utf8",
-    })
-    assert.equal(r.status, 0)
-    const settings = JSON.parse(await fs.readFile(path.join(home, ".claude", "settings.json"), "utf8"))
-    const cmd = settings.hooks.PreToolUse.flatMap((e) => e.hooks).map((h) => h.command).join("\n")
-    assert.match(cmd, /--mode deny/)
+    const file = await makeLargeFile(dir)
+    const payload = JSON.stringify({ tool_name: "Edit", tool_input: { file_path: file }, cwd: dir, session_id: "allowbake" })
+    for (let i = 0; i < 6; i += 1) {
+      // simulate the baked hook: fixed --mode allow
+      const out = runTripwire(payload, ["--mode", "allow"], { TOOLSMITH_STATE_DIR: state }).stdout
+      assert.equal(decisionOf(out), "allow")
+    }
   } finally {
-    await fs.rm(home, { recursive: true, force: true })
+    await fs.rm(dir, { recursive: true, force: true })
+    await fs.rm(state, { recursive: true, force: true })
   }
 })
