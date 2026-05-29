@@ -4,6 +4,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
+import { installClaudePrime, installClaudeTripwire, removeClaudeTripwire } from "../lib/tripwire.js"
 
 const CLI = path.resolve("bin/toolsmith.js")
 
@@ -131,6 +132,37 @@ test("a fixed mode opts out of escalation (stays allow across many fires)", asyn
   } finally {
     await fs.rm(dir, { recursive: true, force: true })
     await fs.rm(state, { recursive: true, force: true })
+  }
+})
+
+test("prime command prints the re-priming rule (for the SessionStart hook)", () => {
+  const r = spawnSync(process.execPath, [CLI, "prime"], { encoding: "utf8", env: { ...process.env, TOOLSMITH_NO_UPDATE_CHECK: "1" } })
+  assert.equal(r.status, 0)
+  assert.match(r.stdout, /mcp__toolsmith__/)
+  assert.match(r.stdout, /200 lines/)
+})
+
+test("prime SessionStart hook installs; tripwire remove cleans both prime and tripwire", async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-prime-"))
+  const prev = process.env.HOME
+  process.env.HOME = home
+  try {
+    installClaudeTripwire("adaptive")
+    installClaudePrime()
+    const settingsPath = path.join(home, ".claude", "settings.json")
+    let hooks = JSON.stringify(JSON.parse(await fs.readFile(settingsPath, "utf8")).hooks)
+    assert.equal(hooks.includes("toolsmith-tripwire"), true)
+    assert.equal(hooks.includes("toolsmith-prime"), true)
+    assert.match(hooks, /SessionStart/)
+    const { removed } = removeClaudeTripwire()
+    assert.equal(removed, true)
+    hooks = JSON.stringify(JSON.parse(await fs.readFile(settingsPath, "utf8")).hooks || {})
+    assert.equal(hooks.includes("toolsmith-tripwire"), false)
+    assert.equal(hooks.includes("toolsmith-prime"), false)
+  } finally {
+    if (prev === undefined) delete process.env.HOME
+    else process.env.HOME = prev
+    await fs.rm(home, { recursive: true, force: true })
   }
 })
 

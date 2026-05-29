@@ -64,6 +64,9 @@ try {
     console.log(packageInfo().version || "unknown")
   } else if (command === "_update-refresh") {
     await runUpdateRefresh() // hidden: detached daily worker spawned by maybeScheduleRefresh
+  } else if (command === "prime") {
+    const { primeText } = await import("../lib/tripwire.js") // SessionStart hook: re-assert the rule into context
+    console.log(primeText())
   } else if (command === "mcp") {
     await import("./toolsmith-mcp.js")
   } else if (command === "--print-context") {
@@ -218,7 +221,7 @@ try {
 // Unobtrusive update awareness: cache-only notice on an interactive terminal (stderr, so it
 // never corrupts the JSON/text that edit primitives print to stdout) + a once/day detached
 // refresh. Skipped for the MCP server, the refresh worker itself, CI, and opt-outs.
-if (command !== "mcp" && command !== "_update-refresh" && !updateCheckDisabled()) {
+if (command !== "mcp" && command !== "_update-refresh" && command !== "prime" && !updateCheckDisabled()) {
   try {
     if (process.stderr.isTTY && cachedUpdateStatus(packageInfo().version)?.behind) {
       const { installContext } = await import("../lib/config.js")
