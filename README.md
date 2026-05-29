@@ -61,7 +61,7 @@ Toolsmith edits config, so here's exactly what it touches. Everything is idempot
 | Codex session footer | `~/.codex/config.toml` hook | on, inert unless `TOOLSMITH_CODEX_FOOTER=1` | `toolsmith setup --no-codex-footer` |
 | PreToolUse tripwire | `~/.claude/settings.json` | off (`--tripwire`) | `toolsmith adopt --tripwire --remove` |
 
-Skip pieces: `toolsmith setup --no-priming --no-codex-footer`.
+Skip pieces: `toolsmith setup --no-priming --no-codex-footer`. Before editing a config file, setup writes a recoverable copy next to it (`<file>.toolsmith-bak`) — `mv` it back to undo.
 
 ## MCP tools
 
