@@ -527,7 +527,7 @@ test("setup --no-priming: skips priming injection", async () => {
   }
 })
 
-test("setup installs the tripwire BY DEFAULT (adaptive mode)", async () => {
+test("setup installs the tripwire BY DEFAULT in nudge-only allow mode", async () => {
   const { home } = await seedHomeWithCodexConfig()
   try {
     const result = await execFileAsync(
@@ -536,8 +536,25 @@ test("setup installs the tripwire BY DEFAULT (adaptive mode)", async () => {
       { cwd: home, env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin" } },
     ).catch((err) => ({ stdout: err.stdout || "" }))
     const settings = JSON.parse(await fs.readFile(path.join(home, ".claude", "settings.json"), "utf8"))
-    assert.match(result.stdout || "", /Toolsmith tripwire: installed \(mode: adaptive\)/)
-    assert.equal(JSON.stringify(settings.hooks).includes("toolsmith-tripwire"), true)
+    assert.match(result.stdout || "", /Toolsmith tripwire: installed \(mode: allow\)/)
+    const cmd = settings.hooks.PreToolUse.flatMap((e) => e.hooks).map((h) => h.command).join("\n")
+    assert.match(cmd, /--mode allow\b/) // default never prompts
+  } finally {
+    await fs.rm(home, { recursive: true, force: true })
+  }
+})
+
+test("setup --tripwire-mode adaptive opts into escalation", async () => {
+  const { home } = await seedHomeWithCodexConfig()
+  try {
+    await execFileAsync(
+      process.execPath,
+      [CLI, "setup", "--no-smoke", "--force", "--no-priming", "--tripwire-mode", "adaptive"],
+      { cwd: home, env: { ...process.env, HOME: home, PATH: "/usr/bin:/bin" } },
+    ).catch((err) => ({ stdout: err.stdout || "" }))
+    const settings = JSON.parse(await fs.readFile(path.join(home, ".claude", "settings.json"), "utf8"))
+    const cmd = settings.hooks.PreToolUse.flatMap((e) => e.hooks).map((h) => h.command).join("\n")
+    assert.match(cmd, /--mode adaptive\b/)
   } finally {
     await fs.rm(home, { recursive: true, force: true })
   }
