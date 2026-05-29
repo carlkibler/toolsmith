@@ -50,7 +50,8 @@ test("tripwire run emits Claude hook JSON and logs fired nudges", async () => {
     const result = spawnSync(process.execPath, [CLI, "tripwire", "run", "--format", "claude"], {
       input: payload,
       encoding: "utf8",
-      env: { ...process.env, TOOLSMITH_TRIPWIRE_LOG: logPath },
+      // Fresh state dir → adaptive's first fire is a gentle "allow" (deterministic).
+      env: { ...process.env, TOOLSMITH_TRIPWIRE_LOG: logPath, TOOLSMITH_STATE_DIR: dir },
     })
     assert.equal(result.status, 0)
     const out = JSON.parse(result.stdout)
