@@ -135,7 +135,7 @@ TOOLSMITH_CODEX_FOOTER=1 codex "..."     # enable for a session
 6th+ bypass      → deny   (native edit blocked; agent must use a Toolsmith tool)
 ```
 
-Built-in safety rails so it never walls off legitimate work: **reads never hard-block** (they cap at `ask` — you might genuinely need a full read of a file Toolsmith can't parse, like a lockfile or minified bundle); a **Write that creates a new file never blocks** (only `Write` can create a file); the nudge **never auto-approves** the native op (your own permission prompts still run); and escalation only applies within a real session, resetting fresh each time.
+Built-in safety rails so it never walls off legitimate work: **reads never hard-block** (they cap at `ask` — you might genuinely need a full read of a file Toolsmith can't parse, like a lockfile or minified bundle); a **Write that creates a new file never blocks** (only `Write` can create a file); it **never blocks a file Toolsmith can't reach** (outside the workspace, or over its size limit) — blocking with no reachable alternative would be a catch-22; the nudge **never auto-approves** the native op (your own permission prompts still run); and escalation only applies within a real session, resetting fresh each time.
 
 Compliant agents never feel it; token-burning ones get redirected. Fix the firmness instead of escalating, or turn it off:
 
