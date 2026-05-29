@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.45 — 2026-05-28
+
+Make the adaptive tripwire safe to ship to any project — it was too eager to hard-block:
+
+- **Adaptive now caps at `ask` and never auto-denies.** Hard blocking is opt-in via a fixed `--tripwire-mode deny`. A prompt is a strong nudge; an auto-block across thousands of projects is a hassle.
+- **Using any Toolsmith tool resets the bypass count** (new `PostToolUse` hook on `mcp__toolsmith__*`). The counter now measures *consecutive ignoring* — native large-file ops with no Toolsmith use between them — not total large-file work. An agent that's actually using Toolsmith never escalates, however big the project. This was the real flaw: the old counter only went up, so even a mostly-compliant agent eventually tripped.
+- Removed `TOOLSMITH_TRIPWIRE_DENY_AFTER` (adaptive no longer denies); `TOOLSMITH_TRIPWIRE_ASK_AFTER` still tunes the ask threshold. `toolsmith tripwire remove` cleans both the Pre and Post hooks.
+
 ## 0.1.44 — 2026-05-28
 
 - Fix a tripwire catch-22: it no longer escalates to `ask`/`deny` for a file Toolsmith can't actually reach — one **outside the workspace** (its MCP tools refuse paths outside cwd) or **larger than its read limit**. Blocking those redirected the agent to a tool that would also refuse the file, with no valid way forward. Now they stay a nudge (`allow`) in every mode, including a fixed `--mode deny`. Found by dogfooding: a live agent hit `deny` editing `~/.claude/settings.json` from a project workspace.

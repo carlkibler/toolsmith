@@ -96,7 +96,7 @@ test("installed hook bakes an absolute node path and a PATH fallback (no nvm har
   }
 })
 
-test("adaptive mode (the default) escalates allow → ask → deny across a session", async () => {
+test("adaptive mode (the default) escalates allow → ask and never auto-denies", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-esc-"))
   const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-esc-state-"))
   try {
@@ -112,10 +112,11 @@ test("adaptive mode (the default) escalates allow → ask → deny across a sess
       })
       decisions.push(decisionOf(r.stdout))
     }
-    // defaults: ask after 3, deny after 6
+    // ask after 3, then caps at ask — adaptive never auto-denies (deny is opt-in via fixed --mode)
     assert.deepEqual(decisions.slice(0, 2), ["allow", "allow"])
     assert.equal(decisions[2], "ask")
-    assert.equal(decisions[5], "deny")
+    assert.equal(decisions[5], "ask")
+    assert.equal(decisions.includes("deny"), false)
   } finally {
     await fs.rm(dir, { recursive: true, force: true })
     await fs.rm(state, { recursive: true, force: true })
@@ -156,6 +157,29 @@ test("adaptive never blocks a Write to a not-yet-existing file (only Write can c
         env: { ...process.env, TOOLSMITH_STATE_DIR: state, TOOLSMITH_TRIPWIRE_LOG: "0", TOOLSMITH_NO_UPDATE_CHECK: "1" },
       }).stdout), "allow")
     }
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+    await fs.rm(state, { recursive: true, force: true })
+  }
+})
+
+test("using Toolsmith resets escalation: reset-session drops a session back to a nudge", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-reset-"))
+  const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-reset-state-"))
+  try {
+    const file = await makeLargeFile(dir)
+    const editPayload = JSON.stringify({ tool_name: "Edit", tool_input: { file_path: file }, cwd: dir, session_id: "reset-e2e" })
+    const env = { TOOLSMITH_STATE_DIR: state, TOOLSMITH_TRIPWIRE_LOG: "0", TOOLSMITH_NO_UPDATE_CHECK: "1" }
+    // Bypass enough to reach "ask".
+    let last
+    for (let i = 0; i < 4; i += 1) last = decisionOf(runTripwire(editPayload, [], env).stdout)
+    assert.equal(last, "ask")
+    // Agent uses a Toolsmith tool → PostToolUse reset hook fires.
+    const resetPayload = JSON.stringify({ tool_name: "mcp__toolsmith__anchored_read", session_id: "reset-e2e" })
+    const r = spawnSync(process.execPath, [CLI, "tripwire", "reset-session"], { input: resetPayload, encoding: "utf8", env: { ...process.env, ...env } })
+    assert.equal(r.status, 0)
+    // Next bypass starts gentle again.
+    assert.equal(decisionOf(runTripwire(editPayload, [], env).stdout), "allow")
   } finally {
     await fs.rm(dir, { recursive: true, force: true })
     await fs.rm(state, { recursive: true, force: true })
