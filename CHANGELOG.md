@@ -1,12 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.1.42 — 2026-05-28
 
 Robustness:
 - Preserve a file's line endings on edits. `anchored_edit`/`anchored_edit_many`/`symbol_replace` no longer silently rewrite a CRLF file to LF (which turned a 1-line change into a whole-file diff on Windows/CRLF repos). New `detectEol()` + EOL-aware rejoin.
 - `anchored_edit_many` is now atomic across files: every file is staged to a temp before any rename, so a mid-batch write failure (disk full, permission flip) leaves zero files changed instead of a half-applied refactor.
 - `looksBinary` scans the whole buffer for NUL (a NUL is valid UTF-8, so the old 8KB-prefix check could read NUL-bearing files as text).
 - Tripwire fails OPEN on any error and resolves node via an absolute path with a PATH fallback (no nvm dependency). A tripwire bug or missing runtime can no longer block your Read/Edit/Bash by returning a non-zero PreToolUse exit.
+- `setup` backs up each user config file (`<file>.toolsmith-bak`) before rewriting it — best-effort, never blocks the write; `mv` to restore.
 
 Adoption:
 - Tripwire escalation modes: `allow` (nudge, default) / `ask` (prompt) / `deny` (block native large-file ops and force a Toolsmith tool). Set via `toolsmith tripwire install --mode` or `TOOLSMITH_TRIPWIRE_MODE`. Sharper, action-forward nudges.
@@ -18,7 +19,8 @@ Distribution:
 - README: Homebrew install, a "what setup changes on your machine" footprint table, a promoted Privacy section, an Uninstall section, and the audit→opportunities→tripwire→re-audit loop.
 
 Transparency:
-- Lost-savings projection now names its constants and labels them as assumptions in the output, so the estimate can't read as a measurement. Measured per-call savings remain in `toolsmith audit`.
+- `audit` splits the headline into defensible read-family savings (skeleton/get_function/anchored_read/_search/find_and_anchor, where a full-file counterfactual is realistic) vs. an "edit-family upper bound" (edits credit the whole pre-edit file). `trends` labels "tokens caught" as measured and "missed savings"/"interception rate" as modeled, with the assumed constants shown inline.
+- Lost-savings projection names its constants and labels them as assumptions in the output, so the estimate can't read as a measurement.
 
 ## 0.1.41 — 2026-05-28
 
