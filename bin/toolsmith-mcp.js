@@ -20,6 +20,18 @@ const { version } = JSON.parse(readFileSync(path.join(__dirname, "..", "package.
 const workspace = new WorkspaceTools({ cwd: process.env.TOOLSMITH_CWD || process.cwd() })
 const usageLogger = new UsageLogger({ cwd: workspace.cwd, version })
 
+// Update awareness, once at startup. stderr ONLY — stdout is the JSON-RPC channel. Cache-only
+// read (instant), plus a detached daily refresh. Wrapped so it can never break the handshake.
+try {
+  const { cachedUpdateStatus, maybeScheduleRefresh, updateNoticeText } = await import("../lib/update-check.js")
+  if (cachedUpdateStatus(version)?.behind) {
+    const { installContext } = await import("../lib/config.js")
+    const notice = updateNoticeText(version, { kind: installContext().kind })
+    if (notice) process.stderr.write(`toolsmith MCP: ${notice}\n`)
+  }
+  maybeScheduleRefresh()
+} catch { /* never block server startup on update awareness */ }
+
 function verboseOutput() {
   return envEnabled(process.env.TOOLSMITH_VERBOSE) || envEnabled(process.env.TOOLSMITH_DEBUG)
 }
