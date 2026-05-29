@@ -1,4 +1,4 @@
-import { splitLines } from "./anchors.js"
+import { detectEol, splitLines } from "./anchors.js"
 import { contentHash } from "./hash.js"
 import { findSymbolRange } from "./structure.js"
 import { checkRegexSafety } from "./regex-safety.js"
@@ -24,8 +24,8 @@ export function symbolReplace({ path, content, store, sessionId, workspaceKey, n
   }
 
   const nextLines = [...lines]
-  nextLines.splice(range.startIndex, range.endIndex - range.startIndex + 1, ...afterSymbol.split("\n"))
-  const nextContent = nextLines.join("\n")
+  nextLines.splice(range.startIndex, range.endIndex - range.startIndex + 1, ...afterSymbol.split(/\r?\n/))
+  const nextContent = nextLines.join(detectEol(content))
   const anchors = commitAnchors ? store.reconcile(path, nextContent, { sessionId, workspaceKey }) : []
 
   return {

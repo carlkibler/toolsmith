@@ -2,6 +2,7 @@ export { contentHash, fnv1a32 } from "./hash.js"
 export {
   ANCHOR_DELIMITER,
   AnchorStore,
+  detectEol,
   formatAnchoredLine,
   splitAnchorReference,
   splitLines,
