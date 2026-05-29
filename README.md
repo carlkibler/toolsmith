@@ -130,12 +130,14 @@ TOOLSMITH_CODEX_FOOTER=1 codex "..."     # enable for a session
 `setup` installs a Claude `PreToolUse` hook that watches native `Read`/`Edit`/`Write` and shell `cat`/`sed`/`nl` on large files. By default it's **adaptive**: it tracks how often an agent bypasses Toolsmith in a session and gets firmer the longer it's ignored.
 
 ```
-1st–2nd bypass   → nudge  (allow, with the token cost: "~12K tokens to read whole")
-3rd+ bypass      → ask    (Claude prompts before the native op)
-6th+ bypass      → deny   (native op blocked; agent must use a Toolsmith tool)
+1st–2nd bypass   → nudge  (a message with the token cost; your normal permission flow still runs)
+3rd–5th bypass   → ask    (Claude prompts before the native op)
+6th+ bypass      → deny   (native edit blocked; agent must use a Toolsmith tool)
 ```
 
-Compliant agents never feel it; token-burning ones get redirected. A fresh session starts gentle again. Fix the firmness instead of escalating, or turn it off:
+Built-in safety rails so it never walls off legitimate work: **reads never hard-block** (they cap at `ask` — you might genuinely need a full read of a file Toolsmith can't parse, like a lockfile or minified bundle); a **Write that creates a new file never blocks** (only `Write` can create a file); the nudge **never auto-approves** the native op (your own permission prompts still run); and escalation only applies within a real session, resetting fresh each time.
+
+Compliant agents never feel it; token-burning ones get redirected. Fix the firmness instead of escalating, or turn it off:
 
 ```bash
 toolsmith setup --tripwire-mode allow   # always nudge, never block
