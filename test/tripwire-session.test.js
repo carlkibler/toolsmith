@@ -4,7 +4,7 @@ import { existsSync } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import test from "node:test"
-import { adaptiveMode, escalationThresholds, recordFire, pruneOldSessions } from "../lib/tripwire-session.js"
+import { adaptiveMode, escalationThresholds, recordFire, resetSession, pruneOldSessions } from "../lib/tripwire-session.js"
 
 async function withState(fn) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-tw-"))
@@ -17,14 +17,22 @@ async function withState(fn) {
   }
 }
 
-test("adaptiveMode escalates allow → ask → deny by fire count", () => {
-  const { askAfter, denyAfter } = escalationThresholds
+test("adaptiveMode escalates allow → ask and caps there (never auto-denies)", () => {
+  const { askAfter } = escalationThresholds
   assert.equal(adaptiveMode(1), "allow")
   assert.equal(adaptiveMode(askAfter - 1), "allow")
   assert.equal(adaptiveMode(askAfter), "ask")
-  assert.equal(adaptiveMode(denyAfter - 1), "ask")
-  assert.equal(adaptiveMode(denyAfter), "deny")
-  assert.equal(adaptiveMode(denyAfter + 50), "deny")
+  assert.equal(adaptiveMode(askAfter + 50), "ask") // never escalates past ask
+})
+
+test("resetSession clears the count — using Toolsmith resets escalation", async () => {
+  await withState(() => {
+    const { askAfter } = escalationThresholds
+    for (let i = 0; i < askAfter; i += 1) recordFire("s")
+    assert.equal(adaptiveMode(askAfter), "ask") // would be asking now
+    resetSession("s")
+    assert.equal(recordFire("s"), 1) // back to a fresh, gentle count
+  })
 })
 
 test("recordFire increments per session and isolates sessions", async () => {

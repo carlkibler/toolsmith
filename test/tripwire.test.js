@@ -111,13 +111,17 @@ test("tripwire install is idempotent and remove cleans the Claude hook", async (
     })
     const settings = JSON.parse(await fs.readFile(settingsPath, "utf8"))
     const tripwireHooks = settings.hooks.PreToolUse.flatMap((entry) => entry.hooks).filter((hook) => hook.command.includes("toolsmith-tripwire"))
-    assert.equal(tripwireHooks.length, 1)
+    assert.equal(tripwireHooks.length, 1) // PreToolUse nudge, not duplicated
+    // PostToolUse reset hook on mcp__toolsmith__* — also exactly one, also not duplicated.
+    const resetHooks = (settings.hooks.PostToolUse || []).flatMap((e) => e.hooks).filter((h) => h.command.includes("toolsmith-tripwire"))
+    assert.equal(resetHooks.length, 1)
+    assert.match(settings.hooks.PostToolUse.find((e) => e.hooks.some((h) => h.command.includes("toolsmith-tripwire"))).matcher, /toolsmith/)
     assert.equal(JSON.stringify(settings.hooks).includes("tl-hook run"), false)
     assert.match(settings.hooks.PreToolUse[0].matcher, /Read/)
 
     await execFileAsync(process.execPath, [CLI, "tripwire", "remove"], { env: { ...process.env, HOME: home } })
     const removed = JSON.parse(await fs.readFile(settingsPath, "utf8"))
-    assert.equal(JSON.stringify(removed.hooks).includes("toolsmith-tripwire"), false)
+    assert.equal(JSON.stringify(removed.hooks).includes("toolsmith-tripwire"), false) // both Pre + Post gone
   } finally {
     await fs.rm(home, { recursive: true, force: true })
   }

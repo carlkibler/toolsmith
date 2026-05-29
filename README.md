@@ -6,7 +6,7 @@ Native file tools send entire files into context. Toolsmith sends only what the 
 
 **88–93% token reduction per call** — measured across 1,500+ real agent sessions over 30 days (Codex, Claude Code, Gemini CLI, Pi.dev). When agents use toolsmith tools instead of native reads, they send 88–93% fewer tokens for that operation. `find_and_anchor` averages ~70K tokens saved per call.
 
-The honest catch: agents have native-tool muscle memory and don't always reach for Toolsmith on their own — across real sessions it's used on roughly a third to a half of large-file operations. That gap is the lever, and Toolsmith ships the tools to close it: a preference hint injected into your agent config, and an opt-in tripwire that nudges (or, in `--mode deny`, blocks) native large-file reads. Run `toolsmith audit` for your own numbers and `toolsmith opportunities` to see exactly what slipped through.
+The honest catch: agents have native-tool muscle memory and don't always reach for Toolsmith on their own — across real sessions it's used on roughly a third to a half of large-file operations. That gap is the lever, and Toolsmith ships the tools to close it: a preference hint injected into your agent config, plus an on-by-default [adaptive tripwire](#the-tripwire-adaptive-on-by-default) that nudges native large-file ops toward Toolsmith and escalates to a prompt only for agents that keep ignoring it (never auto-blocking unless you opt into `--tripwire-mode deny`). Run `toolsmith audit` for your own numbers and `toolsmith opportunities` to see exactly what slipped through.
 
 ## Install
 
@@ -60,7 +60,7 @@ Toolsmith edits config, so here's exactly what it touches. Everything is idempot
 | Preference hint block | `~/.claude/CLAUDE.md`, plus `~/.codex/AGENTS.md` / `~/.gemini/GEMINI.md` / `~/AGENTS.md` if present (HTML-comment fenced) | on | `toolsmith adopt --remove` |
 | Re-prime SessionStart hook | `~/.claude/settings.json` — re-asserts the rule at session start + after compaction | on (with priming); `--no-priming` skips | `toolsmith tripwire remove` |
 | Codex session footer | `~/.codex/config.toml` hook | on, inert unless `TOOLSMITH_CODEX_FOOTER=1` | `toolsmith setup --no-codex-footer` |
-| PreToolUse tripwire | `~/.claude/settings.json` | **on (adaptive)** — `--no-tripwire` to skip, `--tripwire-mode` to fix | `toolsmith tripwire remove` |
+| Adaptive tripwire (PreToolUse nudge + PostToolUse reset) | `~/.claude/settings.json` | **on (adaptive, caps at ask)** — `--no-tripwire` to skip, `--tripwire-mode` to fix | `toolsmith tripwire remove` |
 
 Skip pieces: `toolsmith setup --no-priming --no-codex-footer`. Before editing a config file, setup writes a recoverable copy next to it (`<file>.toolsmith-bak`) — `mv` it back to undo.
 
@@ -127,26 +127,25 @@ TOOLSMITH_CODEX_FOOTER=1 codex "..."     # enable for a session
 
 ## The tripwire (adaptive, on by default)
 
-`setup` installs a Claude `PreToolUse` hook that watches native `Read`/`Edit`/`Write` and shell `cat`/`sed`/`nl` on large files. By default it's **adaptive**: it tracks how often an agent bypasses Toolsmith in a session and gets firmer the longer it's ignored.
+`setup` installs a Claude `PreToolUse` hook that watches native `Read`/`Edit`/`Write` and shell `cat`/`sed`/`nl` on large files. By default it's **adaptive**: it counts how often an agent bypasses Toolsmith *without using it* in a session, and gets firmer the longer it's ignored.
 
 ```
 1st–2nd bypass   → nudge  (a message with the token cost; your normal permission flow still runs)
-3rd–5th bypass   → ask    (Claude prompts before the native op)
-6th+ bypass      → deny   (native edit blocked; agent must use a Toolsmith tool)
+3rd+ bypass      → ask    (Claude prompts before the native op)
 ```
 
-Built-in safety rails so it never walls off legitimate work: **reads never hard-block** (they cap at `ask` — you might genuinely need a full read of a file Toolsmith can't parse, like a lockfile or minified bundle); a **Write that creates a new file never blocks** (only `Write` can create a file); it **never blocks a file Toolsmith can't reach** (outside the workspace, or over its size limit) — blocking with no reachable alternative would be a catch-22; the nudge **never auto-approves** the native op (your own permission prompts still run); and escalation only applies within a real session, resetting fresh each time.
+**Adaptive caps at `ask` — it never auto-blocks.** The key fairness rule: **using any Toolsmith tool resets the count** (a `PostToolUse` hook on `mcp__toolsmith__*`). So escalation only ever reaches an agent that does several native large-file ops with *zero* Toolsmith use in between — never one that's actually using it, no matter how big the project. Reads also cap at `ask` and never hard-block; new-file writes and files Toolsmith can't reach (outside the workspace, or over its size limit) never escalate at all; and the nudge never auto-approves your native op.
 
-Compliant agents never feel it; token-burning ones get redirected. Fix the firmness instead of escalating, or turn it off:
+Want hard enforcement? Make it opt-in:
 
 ```bash
-toolsmith setup --tripwire-mode allow   # always nudge, never block
-toolsmith setup --tripwire-mode deny    # block native large-file ops from the first one
+toolsmith setup --tripwire-mode deny    # block native large-file edits (where Toolsmith has an answer)
+toolsmith setup --tripwire-mode allow   # only ever nudge, never even ask
 toolsmith setup --no-tripwire           # don't install the hook
 toolsmith tripwire remove               # remove it later
 ```
 
-Override per-session with `TOOLSMITH_TRIPWIRE_MODE=allow|ask|deny|adaptive`; tune thresholds with `TOOLSMITH_TRIPWIRE_ASK_AFTER` / `TOOLSMITH_TRIPWIRE_DENY_AFTER`. The hook always **fails open** — if anything goes wrong it allows the operation, never blocks you by accident.
+Override per-session with `TOOLSMITH_TRIPWIRE_MODE=allow|ask|deny|adaptive`; tune the ask threshold with `TOOLSMITH_TRIPWIRE_ASK_AFTER`. The hook always **fails open** — if anything goes wrong it allows the operation, never blocks you by accident.
 
 ## Opt-in extras
 
