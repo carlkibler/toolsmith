@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.48 — 2026-06-02
 
 `find_and_anchor` directory searches now rank smarter and respect a project ignore file (ideas borrowed from [Semble](https://github.com/MinishLab/semble), reimplemented zero-dependency):
 
