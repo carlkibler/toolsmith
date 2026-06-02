@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+`find_and_anchor` directory searches now rank smarter and respect a project ignore file (ideas borrowed from [Semble](https://github.com/MinishLab/semble), reimplemented zero-dependency):
+
+- **BM25 relevance ranking.** Candidate files are scored by Okapi BM25 against the query (identifier-aware tokenization that splits `camelCase`/`snake_case`) and searched most-relevant-first. The match budget (`maxMatches`) now lands on the files that matter instead of whatever the directory walk hit first. Pure JS, no new dependencies.
+- **`.toolsmithignore` support.** A gitignore-syntax file at the search root tunes what the walk visits — globs (`*`/`**`/`?`), leading-slash anchoring, trailing-slash dir-only patterns, and `!` force-include with last-match-wins precedence.
+
 ## 0.1.47 — 2026-05-29
 
 The tripwire default is now **nudge-only**, and prompts are always haltable:

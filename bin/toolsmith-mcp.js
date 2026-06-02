@@ -216,7 +216,7 @@ registerTool(
   "find_and_anchor",
   {
     title: "Find and Anchor",
-    description: "Repo/file search that returns anchored snippets ready for anchored_edit. Use instead of rg+sed/cat when searching large or unfamiliar files.",
+    description: "Repo/file search that returns anchored snippets ready for anchored_edit. Use instead of rg+sed/cat when searching large or unfamiliar files. Directory searches rank candidate files by BM25 relevance to the query (most relevant first) and honor a .toolsmithignore file (gitignore syntax) at the search root.",
     inputSchema: {
       type: "object",
       properties: {
