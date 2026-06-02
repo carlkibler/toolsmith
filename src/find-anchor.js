@@ -2,9 +2,12 @@ import path from "node:path"
 import { contentHash } from "./hash.js"
 import { searchAnchored } from "./search.js"
 import { estimateTokens } from "./telemetry.js"
+import { tokenize, scoreDocuments } from "./bm25.js"
+import { compileIgnore } from "./ignore.js"
 
 const SKIP_DIRS = new Set([".git", "node_modules", "dist", "build", ".next", ".venv", "venv", "__pycache__", ".beads", ".dolt", "coverage"])
 const BINARY_EXT_RE = /\.(?:png|jpe?g|gif|webp|ico|pdf|zip|gz|tgz|bz2|xz|7z|dmg|sqlite|db|mp4|mov|mp3|wav|woff2?|ttf|otf)$/i
+const IGNORE_FILE = ".toolsmithignore"
 
 export async function findAndAnchor({
   rootAbsolute,
@@ -30,9 +33,9 @@ export async function findAndAnchor({
   const parsedPerFileLimit = Number(maxMatchesPerFile)
   const perFileLimit = Number.isFinite(parsedPerFileLimit) && parsedPerFileLimit > 0 ? parsedPerFileLimit : Math.max(1, Number(maxMatches) || 20)
   const collection = isDirectory
-    ? await collectFiles({ rootAbsolute, rootRelative, listDir, statPath, glob, maxFiles })
+    ? await collectFiles({ rootAbsolute, rootRelative, readFile, listDir, statPath, glob, maxFiles })
     : { files: [{ absolute: rootAbsolute, relative: rootRelative }], truncatedCandidates: false }
-  const files = collection.files
+  const files = isDirectory ? await rankFiles({ files: collection.files, readFile, query, regex }) : collection.files
 
   const matches = []
   const sections = []
@@ -43,9 +46,9 @@ export async function findAndAnchor({
 
   for (const file of files) {
     if (matches.length >= maxMatches) { truncated = true; break }
-    let content
+    let content = file.content
     try {
-      content = await readFile(file.absolute)
+      if (content === undefined) content = await readFile(file.absolute)
     } catch (error) {
       if (!isDirectory) {
         searchError = `${file.relative}: ${error instanceof Error ? error.message : String(error)}`
@@ -106,9 +109,35 @@ export async function findAndAnchor({
   }
 }
 
-async function collectFiles({ rootAbsolute, rootRelative, listDir, statPath, glob, maxFiles }) {
+// Rank candidate files by BM25 relevance to the query so the match budget is
+// spent on the most relevant files first. Preloads content (bounded by maxFiles
+// and the 512KB per-file cap in collectFiles) and attaches it so the main loop
+// does not re-read. Falls back to walk order when no query terms survive or
+// reads fail.
+async function rankFiles({ files, readFile, query, regex }) {
+  if (files.length < 2) return files
+  const terms = tokenize(regex ? String(query).replace(/\\[a-zA-Z]/gu, " ") : query)
+  if (terms.length === 0) return files
+  const docs = await Promise.all(files.map(async (file) => {
+    try {
+      const content = await readFile(file.absolute)
+      file.content = content
+      return content
+    } catch {
+      return ""
+    }
+  }))
+  const scores = scoreDocuments(terms, docs)
+  return files
+    .map((file, index) => ({ file, index, score: scores[index] }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((entry) => entry.file)
+}
+
+async function collectFiles({ rootAbsolute, rootRelative, readFile, listDir, statPath, glob, maxFiles }) {
   const files = []
   const matcher = glob ? globMatcher(glob) : null
+  const ignore = await loadIgnore(rootAbsolute, readFile)
   let truncatedCandidates = false
 
   async function walk(abs, rel) {
@@ -116,12 +145,15 @@ async function collectFiles({ rootAbsolute, rootRelative, listDir, statPath, glo
     const entries = await listDir(abs)
     for (const entry of entries) {
       if (files.length >= maxFiles) { truncatedCandidates = true; return }
+      const childRel = rel ? path.join(rel, entry.name) : entry.name
       if (entry.isDirectory()) {
-        if (!SKIP_DIRS.has(entry.name)) await walk(path.join(abs, entry.name), rel ? path.join(rel, entry.name) : entry.name)
+        if (SKIP_DIRS.has(entry.name)) continue
+        if (ignore && ignore.ignores(childRel, true)) continue
+        await walk(path.join(abs, entry.name), childRel)
       } else if (entry.isFile()) {
-        const childRel = rel ? path.join(rel, entry.name) : entry.name
         const displayRel = rootRelative === "." ? childRel : path.join(rootRelative, childRel)
         if (BINARY_EXT_RE.test(entry.name)) continue
+        if (ignore && ignore.ignores(childRel, false)) continue
         if (matcher && !matcher(displayRel) && !matcher(childRel) && !matcher(entry.name)) continue
         const absolute = path.join(abs, entry.name)
         const st = await statPath(absolute)
@@ -133,6 +165,14 @@ async function collectFiles({ rootAbsolute, rootRelative, listDir, statPath, glo
 
   await walk(rootAbsolute, rootRelative === "." ? "" : "")
   return { files, truncatedCandidates }
+}
+
+async function loadIgnore(rootAbsolute, readFile) {
+  try {
+    return compileIgnore(await readFile(path.join(rootAbsolute, IGNORE_FILE)))
+  } catch {
+    return null
+  }
 }
 
 function globMatcher(glob) {

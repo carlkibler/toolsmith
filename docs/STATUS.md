@@ -1,6 +1,6 @@
 # Project Status
 
-Updated: 2026-05-25 (Claude tripwire hook schema fix)
+Updated: 2026-06-02 (find_and_anchor BM25 ranking + .toolsmithignore)
 
 ## What exists now
 
@@ -14,7 +14,7 @@ Implemented pieces:
   - exact anchor + line-content validation before mutation
   - retry-friendly validation errors that show the exact full `Anchor§line` reference
   - compact anchored single-file search
-  - repo/file search with `find_and_anchor` for anchored snippets across candidate files
+  - repo/file search with `find_and_anchor` for anchored snippets across candidate files; directory searches rank candidates by zero-dep BM25 relevance (most relevant first, so the match budget lands on the best files) and honor a `.toolsmithignore` file (gitignore syntax, `!` force-include) at the search root
   - compact structural reads with `file_skeleton` and `get_function`
   - safe symbol-scoped replacements with `symbol_replace`
   - lightweight telemetry for bytes/tokens avoided, request/response size, anchor count, and edit deltas
