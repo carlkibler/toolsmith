@@ -141,7 +141,7 @@ toolsmith tripwire remove                 # remove it later
 
 **Adaptive** is the smart middle ground: it counts how often an agent bypasses Toolsmith *without using it* in a session and escalates nudge → ask, but **using any Toolsmith tool resets the count** (a `PostToolUse` hook on `mcp__toolsmith__*`), so it only ever reaches an agent that's genuinely ignoring the tool — never one that's using it, however big the project. It caps at `ask` and never auto-denies.
 
-Safety rails on every mode: reads never hard-block (cap at `ask`); a `Write` that creates a new file never escalates; files Toolsmith can't reach (outside the workspace, or over its size limit) never escalate; **`bypassPermissions` mode downgrades everything to a nudge** (if you've opted out of prompts, the tripwire respects that); and the hook always **fails open**. Per-session override: `TOOLSMITH_TRIPWIRE_MODE=allow|ask|deny|adaptive`; tune adaptive with `TOOLSMITH_TRIPWIRE_ASK_AFTER`.
+Safety rails on every mode: reads never hard-block (cap at `ask`); a `Write` that creates a new file never escalates; files Toolsmith can't reach (currently: over its size limit) never escalate; **`bypassPermissions` mode downgrades everything to a nudge** (if you've opted out of prompts, the tripwire respects that); and the hook always **fails open**. Per-session override: `TOOLSMITH_TRIPWIRE_MODE=allow|ask|deny|adaptive`; tune adaptive with `TOOLSMITH_TRIPWIRE_ASK_AFTER`.
 
 ## Opt-in extras
 
