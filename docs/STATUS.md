@@ -88,7 +88,7 @@ Integration coverage in tests:
 - ReDoS protection: catastrophically backtracking regex patterns rejected via vm timeout check; fast-path pre-filter skips vm for no-quantifier patterns
 - weekly audit postcard: `audit --week` emits week-over-week delta (agent calls, tokens avoided, missed savings, biggest lost op); `readUsageLog` `untilMs` filter for bounded windows
 - Anchor Pact phase 1 (warn-mode): `AnchorStore` keyed by `(workspaceKey, sessionId, path)`; tool outputs prefixed with `[Workspace: …]`; `anchored_edit`/`anchored_edit_many` accept optional `workspace` field; mismatch warns instead of rejecting (phase 2 in 0.2.x)
-- symlink TOCTOU mitigation: O_NOFOLLOW on all file opens, ELOOP fallback for workspace symlinks
+- Toolsmith follows absolute, relative, and symlinked paths; anchored edits to symlinks write the resolved target without replacing the link
 - null byte rejection in path inputs
 - write size enforcement at both schema validation and file write layers
 - anchor-mismatch error human footer present; suppressed under TOOLSMITH_TERSE=1

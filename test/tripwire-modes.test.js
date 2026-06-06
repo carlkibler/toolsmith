@@ -197,17 +197,14 @@ test("using Toolsmith resets escalation: reset-session drops a session back to a
   }
 })
 
-test("adaptive never blocks an edit OUTSIDE the workspace (toolsmith can't reach it → no catch-22)", async () => {
+test("fixed deny can block an outside-cwd edit because Toolsmith can reach it", async () => {
   const fileDir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-oow-file-"))
   const workDir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-oow-cwd-"))
   const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-oow-state-"))
   try {
     const file = await makeLargeFile(fileDir) // lives outside workDir
-    // session cwd is workDir; the target file is elsewhere → toolsmith would refuse it.
     const payload = JSON.stringify({ tool_name: "Edit", tool_input: { file_path: file }, cwd: workDir, session_id: "oow" })
-    for (let i = 0; i < 10; i += 1) {
-      assert.notEqual(decisionOf(runTripwire(payload, ["--mode", "deny"], { TOOLSMITH_STATE_DIR: state, TOOLSMITH_NO_UPDATE_CHECK: "1" }).stdout), "deny", `out-of-workspace edit must never deny even in deny mode (fire ${i + 1})`)
-    }
+    assert.equal(decisionOf(runTripwire(payload, ["--mode", "deny"], { TOOLSMITH_STATE_DIR: state, TOOLSMITH_NO_UPDATE_CHECK: "1" }).stdout), "deny")
   } finally {
     await fs.rm(fileDir, { recursive: true, force: true })
     await fs.rm(workDir, { recursive: true, force: true })

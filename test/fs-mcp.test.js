@@ -26,18 +26,35 @@ test("WorkspaceTools reads and writes files inside cwd", async () => {
   assert.equal(await fs.readFile(path.join(cwd, "demo.txt"), "utf8"), "one\nTWO\nthree")
 })
 
-test("WorkspaceTools rejects path traversal", async () => {
+test("WorkspaceTools reads outside cwd when the caller supplies an outside path", async () => {
   const cwd = await tempWorkspace()
+  const sibling = `${cwd}-sibling.txt`
+  await fs.writeFile(sibling, "outside", "utf8")
   const tools = new WorkspaceTools({ cwd })
-  await assert.rejects(() => tools.read({ path: "../nope" }), /escapes workspace/)
+
+  try {
+    const read = await tools.read({ path: sibling, sessionId: "outside" })
+    assert.match(read.text, /§outside/)
+  } finally {
+    await fs.rm(sibling, { force: true })
+  }
 })
 
-test("WorkspaceTools rejects symlink pointing outside workspace", async () => {
+test("WorkspaceTools follows symlinks instead of enforcing workspace containment", async () => {
   const cwd = await tempWorkspace()
-  const link = path.join(cwd, "escape.txt")
-  await fs.symlink("/etc/hosts", link)
+  const outside = `${cwd}-symlink-target.txt`
+  const link = path.join(cwd, "outside-link.txt")
+  await fs.writeFile(outside, "linked", "utf8")
+  await fs.symlink(outside, link)
   const tools = new WorkspaceTools({ cwd })
-  await assert.rejects(() => tools.read({ path: "escape.txt" }), /escapes workspace via symlink/)
+
+  try {
+    const read = await tools.read({ path: "outside-link.txt", sessionId: "link" })
+    assert.match(read.text, /§linked/)
+  } finally {
+    await fs.rm(link, { force: true })
+    await fs.rm(outside, { force: true })
+  }
 })
 
 test("WorkspaceTools reads a regular file normally", async () => {
@@ -410,13 +427,21 @@ test("MCP anchored_edit_many applies cross-file batch", async () => {
 })
 
 
-test("WorkspaceTools rejects contained symlink reads", async () => {
+test("WorkspaceTools edits symlink targets without replacing the symlink", async () => {
   const cwd = await tempWorkspace()
-  await fs.writeFile(path.join(cwd, "target.txt"), "secret", "utf8")
-  await fs.symlink("target.txt", path.join(cwd, "link.txt"))
+  const target = path.join(cwd, "target.txt")
+  const link = path.join(cwd, "link.txt")
+  await fs.writeFile(target, "secret", "utf8")
+  await fs.symlink("target.txt", link)
   const tools = new WorkspaceTools({ cwd })
 
-  await assert.rejects(() => tools.read({ path: "link.txt" }), /refusing to read through symlink|ELOOP/)
+  const read = await tools.read({ path: "link.txt", sessionId: "symlink-edit" })
+  const line = `${read.anchors[0]}§secret`
+  const edited = await tools.edit({ path: "link.txt", sessionId: "symlink-edit", edits: [{ type: "replace", anchor: line, endAnchor: line, text: "public" }] })
+
+  assert.equal(edited.ok, true)
+  assert.equal(await fs.readFile(target, "utf8"), "public")
+  assert.equal((await fs.lstat(link)).isSymbolicLink(), true)
 })
 
 test("WorkspaceTools findAndAnchor glob ** matches root and nested files", async () => {

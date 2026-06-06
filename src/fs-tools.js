@@ -3,8 +3,6 @@ import { constants as fsConstants } from "node:fs"
 import { isUtf8 } from "node:buffer"
 import path from "node:path"
 
-// O_NOFOLLOW: fail if final path component is a symlink. Not available on Windows.
-const O_NOFOLLOW = fsConstants.O_NOFOLLOW || 0
 import { AnchorStore } from "./anchors.js"
 import { contentHash } from "./hash.js"
 import { readAnchored } from "./read.js"
@@ -18,7 +16,6 @@ import { makeTelemetry } from "./telemetry.js"
 const DEFAULT_MAX_BYTES = 512 * 1024
 
 export class WorkspaceTools {
-  #realCwd = null
   #locks = new Map()
 
   constructor({ cwd = process.cwd(), store = new AnchorStore(), maxBytes = DEFAULT_MAX_BYTES } = {}) {
@@ -33,19 +30,15 @@ export class WorkspaceTools {
   resolvePath(inputPath) {
     if (!inputPath || typeof inputPath !== "string") throw new Error("path is required")
     if (inputPath.includes("\0")) throw new Error("path must not contain null bytes")
-    const absolute = path.resolve(this.cwd, inputPath)
+    const absolute = path.isAbsolute(inputPath) ? path.resolve(inputPath) : path.resolve(this.cwd, inputPath)
     const relative = path.relative(this.cwd, absolute)
-    if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
-      return { absolute, relative: relative || "." }
-    }
-    throw new Error(`path escapes workspace: ${inputPath}`)
+    return { absolute, relative: relative || "." }
   }
 
   async read({ path: inputPath, sessionId = "default", startLine, endLine }) {
     const safeStartLine = optionalBoundedInt(startLine, "startLine", 1, Number.MAX_SAFE_INTEGER)
     const safeEndLine = optionalBoundedInt(endLine, "endLine", 1, Number.MAX_SAFE_INTEGER)
     const { absolute, relative } = this.resolvePath(inputPath)
-    await this.#assertContained(absolute)
     const content = await this.#openAndRead(absolute)
     return readAnchored({ path: relative, content, store: this.store, sessionId, workspaceKey: this.workspaceKey, startLine: safeStartLine, endLine: safeEndLine })
   }
@@ -55,7 +48,6 @@ export class WorkspaceTools {
     contextLines = boundedInt(contextLines, "contextLines", 1, 0, 20)
     maxMatches = boundedInt(maxMatches, "maxMatches", 20, 1, 200)
     const { absolute, relative } = this.resolvePath(inputPath)
-    await this.#assertContained(absolute)
     const content = await this.#openAndRead(absolute)
     return searchAnchored({ path: relative, content, store: this.store, sessionId, workspaceKey: this.workspaceKey, query, regex, caseSensitive, contextLines, maxMatches })
   }
@@ -63,7 +55,6 @@ export class WorkspaceTools {
   async skeleton({ path: inputPath, sessionId = "default", maxLines = 200 }) {
     maxLines = boundedInt(maxLines, "maxLines", 200, 1, 1000)
     const { absolute, relative } = this.resolvePath(inputPath)
-    await this.#assertContained(absolute)
     const content = await this.#openAndRead(absolute)
     return fileSkeleton({ path: relative, content, store: this.store, sessionId, workspaceKey: this.workspaceKey, maxLines })
   }
@@ -72,7 +63,6 @@ export class WorkspaceTools {
     contextLines = boundedInt(contextLines, "contextLines", 0, 0, 50)
     maxLines = boundedInt(maxLines, "maxLines", 400, 1, 2000)
     const { absolute, relative } = this.resolvePath(inputPath)
-    await this.#assertContained(absolute)
     const content = await this.#openAndRead(absolute)
     return getFunction({ path: relative, content, store: this.store, sessionId, workspaceKey: this.workspaceKey, name, contextLines, maxLines })
   }
@@ -82,22 +72,18 @@ export class WorkspaceTools {
     maxFiles = boundedInt(maxFiles, "maxFiles", 80, 1, 1000)
     maxMatchesPerFile = boundedInt(maxMatchesPerFile, "maxMatchesPerFile", 5, 1, 50)
     const { absolute } = this.resolvePath(inputPath)
-    await this.#assertContained(absolute)
     const rootRelative = path.relative(this.cwd, absolute) || "."
     return findAndAnchor({
       rootAbsolute: absolute,
       rootRelative,
       readFile: async (target) => {
-        await this.#assertContained(target)
-        return this.#openAndRead(target)
+          return this.#openAndRead(target)
       },
       statPath: async (target) => {
-        await this.#assertContained(target)
-        return fs.stat(target)
+          return fs.stat(target)
       },
       listDir: async (target) => {
-        await this.#assertContained(target)
-        return fs.readdir(target, { withFileTypes: true })
+          return fs.readdir(target, { withFileTypes: true })
       },
       store: this.store,
       sessionId,
@@ -117,8 +103,7 @@ export class WorkspaceTools {
   async symbolReplace({ path: inputPath, sessionId = "default", name, search, replacement = "", regex = false, replaceAll = false, caseSensitive = true, dryRun = false }) {
     const { absolute, relative } = this.resolvePath(inputPath)
     return this.#withLocks([absolute], async () => {
-      await this.#assertContained(absolute)
-      const before = await this.#openAndRead(absolute)
+        const before = await this.#openAndRead(absolute)
       const result = symbolReplace({ path: relative, content: before, store: this.store, sessionId, workspaceKey: this.workspaceKey, name, search, replacement, regex, replaceAll, caseSensitive, commitAnchors: false })
 
       if (result.ok && result.changed && !dryRun) {
@@ -138,8 +123,7 @@ export class WorkspaceTools {
     assertEditBudget(edits, this.maxBytes)
     const { absolute, relative } = this.resolvePath(inputPath)
     return this.#withLocks([absolute], async () => {
-      await this.#assertContained(absolute)
-      const before = await this.#openAndRead(absolute)
+        const before = await this.#openAndRead(absolute)
       const result = applyAnchoredEdits({ path: relative, content: before, store: this.store, sessionId, workspaceKey: this.workspaceKey, workspace, edits, atomic, commitAnchors: false })
       const changed = result.content !== before
 
@@ -178,8 +162,7 @@ export class WorkspaceTools {
       const reads = await Promise.all(files.map(async (file) => {
       try {
         const { absolute, relative } = this.resolvePath(file.path)
-        await this.#assertContained(absolute)
-        const before = await this.#openAndRead(absolute)
+            const before = await this.#openAndRead(absolute)
         return { file, absolute, relative, before }
       } catch (error) {
         return { file, error }
@@ -294,31 +277,12 @@ export class WorkspaceTools {
     }
   }
 
-  async #assertContained(absolute) {
-    let real
-    try {
-      real = await fs.realpath(absolute)
-    } catch (e) {
-      if (e.code === "ENOENT") return
-      throw e
-    }
-    if (!this.#realCwd) this.#realCwd = await fs.realpath(this.cwd)
-    const rel = path.relative(this.#realCwd, real)
-    if (rel.startsWith("..") || path.isAbsolute(rel)) {
-      throw new Error(`path escapes workspace via symlink: ${path.relative(this.cwd, absolute)}`)
-    }
-  }
-
   async #openAndRead(absolute) {
     let fd
     try {
-      fd = await fs.open(absolute, fsConstants.O_RDONLY | O_NOFOLLOW)
+      fd = await fs.open(absolute, "r")
     } catch (e) {
-      if (e.code === "ELOOP" && O_NOFOLLOW !== 0) {
-        throw new Error(`${path.relative(this.cwd, absolute)}: refusing to read through symlink`)
-      } else {
-        throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
-      }
+      throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
     }
     try {
       const stats = await fd.stat()
@@ -340,17 +304,18 @@ export class WorkspaceTools {
     const contentBytes = Buffer.byteLength(content, "utf8")
     if (contentBytes > this.maxBytes) throw new Error(`edit result exceeds size limit (${contentBytes} bytes > ${this.maxBytes}); split into smaller edits`)
 
+    let target = absolute
     let stats
     try {
-      stats = await fs.lstat(absolute)
+      target = await fs.realpath(absolute)
+      stats = await fs.stat(target)
     } catch (e) {
       throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
     }
-    if (stats.isSymbolicLink()) throw new Error(`${path.relative(this.cwd, absolute)}: refusing to write through symlink`)
-    if (!stats.isFile()) throw new Error(`not a file: ${path.relative(this.cwd, absolute)}`)
+    if (!stats.isFile()) throw new Error(`not a file: ${path.relative(this.cwd, target)}`)
 
-    const dir = path.dirname(absolute)
-    const base = path.basename(absolute)
+    const dir = path.dirname(target)
+    const base = path.basename(target)
     const temp = path.join(dir, `.${base}.toolsmith-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.tmp`)
     const mode = stats.mode & 0o777
     let fd
@@ -365,7 +330,7 @@ export class WorkspaceTools {
       await fs.rm(temp, { force: true }).catch(() => {})
       throw new Error(`${path.relative(this.cwd, absolute)}: ${e.message}`)
     }
-    return { absolute, temp, mode }
+    return { absolute: target, temp, mode }
   }
 
   async #commitStaged(staged) {

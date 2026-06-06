@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Remove Toolsmith workspace containment: MCP tools now accept absolute paths, `..` traversal, and symlinked paths instead of rejecting them as "path escapes workspace." Anchored edits through symlinks update the resolved target without replacing the symlink. Toolsmith is a navigation/editing tool, not a filesystem sandbox.
+- Update the tripwire catch-22 guard now that out-of-cwd paths are reachable; only files over Toolsmith's read-size limit stay nudge-only in fixed deny mode.
+
 ## 0.1.48 — 2026-06-02
 
 `find_and_anchor` directory searches now rank smarter and respect a project ignore file (ideas borrowed from [Semble](https://github.com/MinishLab/semble), reimplemented zero-dependency):
