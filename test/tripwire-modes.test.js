@@ -90,6 +90,43 @@ test("invalid mode falls back to allow (never accidentally blocks)", async () =>
   }
 })
 
+test("tripwire allows near-threshold Markdown spec reads", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-spec-read-"))
+  try {
+    const file = path.join(dir, "SPEC-04-target-design.md")
+    await fs.writeFile(file, Array.from({ length: 201 }, (_, i) => `# Section ${i + 1}\n\nSpec prose that the agent may need to read in full.`).join("\n"), "utf8")
+    const payload = JSON.stringify({ tool_name: "Read", tool_input: { file_path: file }, cwd: dir })
+    const result = runTripwire(payload, ["--mode", "deny"])
+    assert.equal(result.status, 0)
+    assert.equal(result.stdout.trim(), "")
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
+test("tripwire still protects edits to near-threshold Markdown specs", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-spec-edit-"))
+  try {
+    const file = path.join(dir, "SPEC-05-agentic-rules-and-gating.md")
+    await fs.writeFile(file, Array.from({ length: 201 }, (_, i) => `# Section ${i + 1}\n\nSpec prose line.`).join("\n"), "utf8")
+    const payload = JSON.stringify({ tool_name: "Edit", tool_input: { file_path: file }, cwd: dir })
+    assert.equal(decisionOf(runTripwire(payload, ["--mode", "deny"]).stdout), "deny")
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
+test("tripwire still nudges large code reads at the normal threshold", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-code-read-"))
+  try {
+    const file = await makeLargeFile(dir)
+    const payload = JSON.stringify({ tool_name: "Read", tool_input: { file_path: file }, cwd: dir })
+    assert.equal(decisionOf(runTripwire(payload, ["--mode", "deny"]).stdout), "deny")
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 test("installed hook bakes an absolute node path and a PATH fallback (no nvm hard dependency)", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-home-"))
   try {

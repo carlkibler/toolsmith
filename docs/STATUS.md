@@ -60,8 +60,9 @@ Implemented pieces:
 
 Local automated checks:
 
-- `npm run check` passes: 243 tests
+- `npm run check` passes: 246 tests
 - `tripwire run --format claude` smoke emits only the current `hookSpecificOutput` root object
+- Tripwire read nudges now distinguish prose/reference docs from code: Markdown/text reads get a higher threshold so near-threshold spec files can be read whole without noise, while edits stay on the normal safety rail.
 - `npm pack --dry-run` succeeds and includes `bin/`, `docs/`, `extensions/`, `scripts/`, and `src/`
 - `npm run test:harnesses -- --skip-local` succeeds
 
