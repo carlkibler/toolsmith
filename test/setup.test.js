@@ -5,9 +5,11 @@ import path from "node:path"
 import test from "node:test"
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
+import { stableNodeCommand } from "../lib/config.js"
 
 const execFileAsync = promisify(execFile)
 const CLI = path.resolve("bin/toolsmith.js")
+const STABLE_NODE = stableNodeCommand()
 
 async function seedHomeWithCodexConfig() {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-home-"))
@@ -458,10 +460,41 @@ for (const command of ["setup", "install"]) {
     assert.equal(updated.match(/\[mcp_servers\.toolsmith\]/g)?.length, 1)
     assert.equal(updated.match(/^\[".*toolsmith-mcp\.(?:js|mjs)"\]$/gm), null)
     assert.match(updated, /\[projects\."\/tmp"\]\ntrust_level = "trusted"/)
-    assert.match(updated, new RegExp(`command = ${JSON.stringify(process.execPath).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`))
+    assert.match(updated, new RegExp(`command = ${JSON.stringify(STABLE_NODE).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`))
     assert.match(result.stdout, /Codex:\s+refreshed/)
   })
 }
+
+test("setup: normalizes Homebrew Cellar Node paths in Codex config", async () => {
+  const { home, configPath } = await seedHomeWithCodexConfig()
+  const brew = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-brew-"))
+  const stableNode = path.join(brew, "bin", "node")
+  const cellarNode = path.join(brew, "Cellar", "node", "26.0.0", "bin", "node")
+  await fs.mkdir(path.dirname(stableNode), { recursive: true })
+  await fs.mkdir(path.dirname(cellarNode), { recursive: true })
+  await fs.writeFile(stableNode, "", "utf8")
+  await fs.writeFile(cellarNode, "", "utf8")
+
+  try {
+    await execFileAsync(process.execPath, [path.resolve("bin/toolsmith.js"), "setup", "--force", "--no-smoke", "--no-priming", "--no-codex-footer"], {
+      cwd: home,
+      env: {
+        ...process.env,
+        HOME: home,
+        HOMEBREW_PREFIX: brew,
+        TOOLSMITH_FAKE_NODE_EXEC_PATH: cellarNode,
+        PATH: "/usr/bin:/bin",
+      },
+    })
+
+    const updated = await fs.readFile(configPath, "utf8")
+    assert.match(updated, new RegExp(`command = ${JSON.stringify(stableNode).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`))
+    assert.doesNotMatch(updated, new RegExp(cellarNode.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+  } finally {
+    await fs.rm(home, { recursive: true, force: true })
+    await fs.rm(brew, { recursive: true, force: true })
+  }
+})
 
 test("setup: injects priming block into ~/.claude/CLAUDE.md", async () => {
   const { home } = await seedHomeWithCodexConfig()
