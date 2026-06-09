@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.49 — 2026-06-09
 
 - Normalize persisted Node commands for MCP registrations and installed hooks: when setup runs under Homebrew's versioned `Cellar/node/.../bin/node`, Toolsmith now writes the stable `bin/node` shim instead of a path that disappears after `brew upgrade`/cleanup.
 - Remove Toolsmith workspace containment: MCP tools now accept absolute paths, `..` traversal, and symlinked paths instead of rejecting them as "path escapes workspace." Anchored edits through symlinks update the resolved target without replacing the symlink. Toolsmith is a navigation/editing tool, not a filesystem sandbox.
