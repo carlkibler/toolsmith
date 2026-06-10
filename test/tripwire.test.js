@@ -33,7 +33,7 @@ test("tripwire nudges shell sed on large files toward anchored_read", async () =
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-tripwire-"))
   try {
     const file = await makeLargeFile(dir)
-    const result = evaluateTripwire({ tool_name: "Bash", tool_input: { command: `sed -n '1,260p' ${file}` } })
+    const result = evaluateTripwire({ tool_name: "Bash", tool_input: { command: `sed -n '1,360p' ${file}` } })
     assert.equal(result.id, "shell-sed")
     assert.match(result.message, /anchored_read/)
   } finally {

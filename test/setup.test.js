@@ -390,7 +390,7 @@ test("Codex footer scanMisses detects apply_patch and sed-n misses", async () =>
 
     const transcript = path.join(home, "session.jsonl")
     const applyRow = JSON.stringify({ type: "response_item", payload: { type: "custom_tool_call", name: "apply_patch", input: "*** Update File: lib/big.py\n@@ -1,3 +1,3 @@" } })
-    const sedRow = JSON.stringify({ type: "response_item", payload: { type: "function_call", name: "exec_command", arguments: JSON.stringify({ cmd: "sed -n '1,300p' lib/foo.py" }) } })
+    const sedRow = JSON.stringify({ type: "response_item", payload: { type: "function_call", name: "exec_command", arguments: JSON.stringify({ cmd: "sed -n '1,301p' lib/foo.py" }) } })
     await fs.writeFile(transcript, applyRow + "\n" + sedRow + "\n", "utf8")
 
     const result = await execFileAsync("bash", ["-c", "printf '%s' \"$2\" | \"$1\"", "bash", script, JSON.stringify({ transcript_path: transcript })], {

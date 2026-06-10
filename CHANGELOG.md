@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Silence the Claude tripwire for explicit small native reads (≤300 lines) even inside very large files; keep broad reads/edits protected, stop reporting threshold artifacts like `201 lines`, and align audit/session-scan heuristics with the quieter cutoff.
+
 ## 0.1.50 — 2026-06-09
 
 - Soften the Claude tripwire for intentional prose/reference reads: Markdown/text specs now get a wider quiet lane, so near-threshold docs can be read whole without noisy PreToolUse nags.

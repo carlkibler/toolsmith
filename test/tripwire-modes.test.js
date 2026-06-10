@@ -127,6 +127,19 @@ test("tripwire still nudges large code reads at the normal threshold", async () 
   }
 })
 
+test("tripwire stays quiet for bounded native reads in large code files", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-bounded-read-"))
+  try {
+    const file = await makeLargeFile(dir)
+    const payload = JSON.stringify({ tool_name: "Read", tool_input: { file_path: file, offset: 80, limit: 120 }, cwd: dir })
+    const result = runTripwire(payload, ["--mode", "deny"])
+    assert.equal(result.status, 0)
+    assert.equal(result.stdout.trim(), "")
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 test("installed hook bakes an absolute node path and a PATH fallback (no nvm hard dependency)", async () => {
   const home = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-home-"))
   try {

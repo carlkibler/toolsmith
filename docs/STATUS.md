@@ -124,6 +124,12 @@ Representative local and remote development hosts were scanned after the adoptio
 - Local install verification: OpenCode 1.14.41 was already present; Cursor 3.3.22, Windsurf 2.2.17, and Zed 1.1.6 installed via Homebrew casks; Cline CLI 2.18.0, Qwen Code 0.15.8, Crush 0.66.0, Continue CLI 1.5.45, and Kilo CLI 7.2.40 installed via npm; Kimi Code 1.41.0 installed via `uv tool`; and Cline/Roo/Kilo/Continue extensions installed in VS Code and Cursor where available.
 - Live effectiveness proof: OpenCode, Kilo CLI, Kimi Code, Crush, and Qwen Code all used Toolsmith `file_skeleton` against `lib/client-mcp.js` and returned `appUserPath`; Cline CLI also used `toolsmith/file_skeleton`. Cursor/VS Code/Windsurf/Zed/extension configs are installed, but editor agents do not all provide a reliable headless tool-use path.
 
+## Tripwire bounded-read quieting — 2026-06-10
+
+- Claude/Codex guidance now treats native bounded reads as acceptable inspection: explicit small ranges/limits up to ~300 lines do not trigger the tripwire. Broad reads, whole-file reads, native edits/writes, `cat`/`nl`, and broad `sed -n` still nudge toward Toolsmith.
+- Tripwire messages no longer report threshold artifacts like `201 lines`; they say `>200 lines` when only the threshold is known. Oversized files above Toolsmith's 512KB read/edit limit get native-bounded-read guidance instead of a bad Toolsmith redirect.
+- Audit/session scanning uses the same ~300-line cutoff for bounded native reads and shell `sed` ranges, so the stats match the live hook's noise budget.
+
 ## Known behavior / caveats
 
 - Codex non-interactive normal approval mode can cancel mutating MCP calls before `anchored_edit` runs. The live Codex harness uses `--dangerously-bypass-approvals-and-sandbox` only inside a disposable workspace so the MCP behavior can be regression-tested without a human approval prompt.

@@ -16,11 +16,11 @@ Get the edit primitives right first:
 
 When MCP tools are available, Toolsmith is the default path for large-file code navigation and surgical edits.
 
-- Files likely >200 lines: use `mcp__toolsmith__file_skeleton`, `mcp__toolsmith__get_function`, or bounded `mcp__toolsmith__anchored_read` before native Read/Write/Edit.
+- Files likely >200 lines: use `mcp__toolsmith__file_skeleton`, `mcp__toolsmith__get_function`, or `mcp__toolsmith__anchored_read` for broad reads and edits; native `Read` with an explicit small range/limit up to ~300 lines is fine for inspection.
 - Search before editing: use `mcp__toolsmith__find_and_anchor` or `mcp__toolsmith__anchored_search` instead of `rg` + `sed`/`cat`.
 - Edit with validation: use `mcp__toolsmith__anchored_edit` / `mcp__toolsmith__anchored_edit_many`; use `mcp__toolsmith__symbol_replace` for one function/class/symbol.
-- Native `Read`/`Edit`/`Write`, shell `cat`, `nl`, or broad `sed -n` are only fine for genuinely small files, command output, or when Toolsmith is unavailable.
-- If you already used a native large-file read, switch to Toolsmith before editing so anchors and telemetry exist.
+- Native `Read` with a small bounded range, command output, and genuinely small files are fine. Avoid native `Edit`/`Write`, shell `cat`/`nl`, and broad `sed -n` on large files when Toolsmith is available.
+- If you already used a native bounded read and need to edit that area, switch to Toolsmith before changing it so anchors and telemetry exist.
 
 ## Dev Flow
 
