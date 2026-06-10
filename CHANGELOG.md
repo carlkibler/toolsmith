@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.50 — 2026-06-09
+
+- Soften the Claude tripwire for intentional prose/reference reads: Markdown/text specs now get a wider quiet lane, so near-threshold docs can be read whole without noisy PreToolUse nags.
+- Keep the safety rail where it matters: edits to Markdown/spec files and large code reads still trip the normal large-file guidance.
+
 ## 0.1.49 — 2026-06-09
 
 - Normalize persisted Node commands for MCP registrations and installed hooks: when setup runs under Homebrew's versioned `Cellar/node/.../bin/node`, Toolsmith now writes the stable `bin/node` shim instead of a path that disappears after `brew upgrade`/cleanup.
