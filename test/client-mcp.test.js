@@ -5,7 +5,7 @@ import path from "node:path"
 import test from "node:test"
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
-import { MCP_BIN } from "../lib/config.js"
+import { MCP_BIN, stableNodeCommand } from "../lib/config.js"
 import { setupJsonMcpTarget } from "../lib/client-mcp.js"
 
 const execFileAsync = promisify(execFile)
@@ -20,7 +20,7 @@ test("setupJsonMcpTarget writes a stdio toolsmith server idempotently", async ()
     assert.equal(first.state, "registered")
     assert.equal(second.state, "already")
     const config = JSON.parse(await fs.readFile(configPath, "utf8"))
-    assert.deepEqual(config.mcp.toolsmith.command, [process.execPath, MCP_BIN])
+    assert.deepEqual(config.mcp.toolsmith.command, [stableNodeCommand(), MCP_BIN])
     assert.equal(config.mcp.toolsmith.type, "local")
     assert.equal(config.mcp.toolsmith.enabled, true)
   } finally {
@@ -46,7 +46,7 @@ test("setupJsonMcpTarget refreshes Cline config while preserving alwaysAllow", a
     const result = setupJsonMcpTarget(target, false)
     const config = JSON.parse(await fs.readFile(configPath, "utf8"))
     assert.equal(result.state, "refreshed")
-    assert.equal(config.mcpServers.toolsmith.command, process.execPath)
+    assert.equal(config.mcpServers.toolsmith.command, stableNodeCommand())
     assert.deepEqual(config.mcpServers.toolsmith.args, [MCP_BIN])
     assert.equal(config.mcpServers.toolsmith.disabled, false)
     assert.deepEqual(config.mcpServers.toolsmith.alwaysAllow, ["file_skeleton"])
@@ -65,11 +65,11 @@ test("setupJsonMcpTarget supports VS Code and Zed MCP roots", async () => {
     const vscodeConfig = JSON.parse(await fs.readFile(vscodePath, "utf8"))
     const zedConfig = JSON.parse(await fs.readFile(zedPath, "utf8"))
     assert.equal(vscode.state, "registered")
-    assert.equal(vscodeConfig.servers.toolsmith.command, process.execPath)
+    assert.equal(vscodeConfig.servers.toolsmith.command, stableNodeCommand())
     assert.deepEqual(vscodeConfig.servers.toolsmith.args, [MCP_BIN])
     assert.equal(vscodeConfig.servers.toolsmith.type, "stdio")
     assert.equal(zed.state, "registered")
-    assert.equal(zedConfig.context_servers.toolsmith.command, process.execPath)
+    assert.equal(zedConfig.context_servers.toolsmith.command, stableNodeCommand())
     assert.deepEqual(zedConfig.context_servers.toolsmith.args, [MCP_BIN])
     assert.equal("type" in zedConfig.context_servers.toolsmith, false)
   } finally {
@@ -86,10 +86,10 @@ test("setupJsonMcpTarget supports command-array MCP clients", async () => {
     setupJsonMcpTarget({ label: "Kilo CLI", path: kiloPath, kind: "kilo-cli", field: "mcp" }, false)
     const crush = JSON.parse(await fs.readFile(crushPath, "utf8"))
     const kilo = JSON.parse(await fs.readFile(kiloPath, "utf8"))
-    assert.equal(crush.mcp.toolsmith.command, process.execPath)
+    assert.equal(crush.mcp.toolsmith.command, stableNodeCommand())
     assert.deepEqual(crush.mcp.toolsmith.args, [MCP_BIN])
     assert.equal(crush.mcp.toolsmith.timeout, 120)
-    assert.deepEqual(kilo.mcp.toolsmith.command, [process.execPath, MCP_BIN])
+    assert.deepEqual(kilo.mcp.toolsmith.command, [stableNodeCommand(), MCP_BIN])
     assert.equal(kilo.mcp.toolsmith.enabled, true)
   } finally {
     await fs.rm(home, { recursive: true, force: true })
@@ -101,7 +101,7 @@ test("doctorJsonMcpClients detects registered and drifted JSON MCP clients", asy
   try {
     await fs.mkdir(path.join(home, ".config", "opencode"), { recursive: true })
     await fs.writeFile(path.join(home, ".config", "opencode", "opencode.json"), JSON.stringify({
-      mcp: { toolsmith: { command: [process.execPath, MCP_BIN], type: "local", enabled: true } },
+      mcp: { toolsmith: { command: [stableNodeCommand(), MCP_BIN], type: "local", enabled: true } },
     }), "utf8")
     await fs.mkdir(path.join(home, ".cursor"), { recursive: true })
     await fs.writeFile(path.join(home, ".cursor", "mcp.json"), JSON.stringify({

@@ -1,6 +1,6 @@
 # Project Status
 
-Updated: 2026-06-02 (find_and_anchor BM25 ranking + .toolsmithignore)
+Updated: 2026-06-09 (stable Node MCP registration paths)
 
 ## What exists now
 
@@ -23,7 +23,7 @@ Implemented pieces:
   - unchanged-line anchor preservation across nearby edits
 - CLI in `bin/toolsmith.js`
   - `read`, `search`, `find-and-anchor`, `skeleton`, `get-function`, `symbol-replace`, `edit`, `edit-many`
-  - `setup` / `install` — registers MCP with Claude Code, Codex, Gemini, Pi.dev, OpenCode, and detected JSON MCP clients; output is quiet for undetected clients and ordered Claude/Codex/Pi/OpenCode/Gemini first, then the rest alphabetically; safely installs a de-duplicated Codex Stop footer unless `--no-codex-footer` is passed, but the footer exits before reading stdin unless explicitly opted in with `TOOLSMITH_CODEX_FOOTER=1`, `TOOLSMITH_VERBOSE=1`, or `TOOLSMITH_DEBUG=1`; migrates deprecated `[features].codex_hooks` to `[features].hooks` and enables `hooks = true` for the footer; when explicitly enabled, the footer includes token reduction %, total token savings, Codex token usage, and 5h/weekly limit reset countdowns when the transcript has rate-limit snapshots
+  - `setup` / `install` — registers MCP with Claude Code, Codex, Gemini, Pi.dev, OpenCode, and detected JSON MCP clients using stable Node commands instead of Homebrew versioned Cellar paths; output is quiet for undetected clients and ordered Claude/Codex/Pi/OpenCode/Gemini first, then the rest alphabetically; safely installs a de-duplicated Codex Stop footer unless `--no-codex-footer` is passed, but the footer exits before reading stdin unless explicitly opted in with `TOOLSMITH_CODEX_FOOTER=1`, `TOOLSMITH_VERBOSE=1`, or `TOOLSMITH_DEBUG=1`; migrates deprecated `[features].codex_hooks` to `[features].hooks` and enables `hooks = true` for the footer; when explicitly enabled, the footer includes token reduction %, total token savings, Codex token usage, and 5h/weekly limit reset countdowns when the transcript has rate-limit snapshots
   - `adopt` — standalone `--inject` / `--remove` for priming block without a full reinstall
   - `doctor` / `doc` — verifies Node ≥20, MCP binary, registration drift, Codex approval-policy, adoption gap, and log writability; `--fix` self-repairs most issues
   - `update` — installs the latest GitHub release package and refreshes MCP registrations plus the opt-in Codex footer by default (`--from PATH` opts into local checkout installs; `--no-setup` skips refresh; `--no-codex-footer` skips only the footer)
@@ -60,7 +60,7 @@ Implemented pieces:
 
 Local automated checks:
 
-- `npm run check` passes: 184 tests
+- `npm run check` passes: 243 tests
 - `tripwire run --format claude` smoke emits only the current `hookSpecificOutput` root object
 - `npm pack --dry-run` succeeds and includes `bin/`, `docs/`, `extensions/`, `scripts/`, and `src/`
 - `npm run test:harnesses -- --skip-local` succeeds
@@ -81,6 +81,7 @@ Integration coverage in tests:
 - Pi multi-file atomic failure behavior
 - Pi setup/doctor/update integration and strict live harness execution
 - Pi stale-package drift: `doctor` warns when Pi.dev points at `npm:@carlkibler/toolsmith` instead of this checkout, and `setup --force` removes the stale Pi package before reinstalling the current source
+- setup normalizes Homebrew `Cellar/node/.../bin/node` into a stable `bin/node` command before persisting Codex and JSON MCP registrations
 - multi-language skeleton and symbol detection: TypeScript, Python, Rust, Go
 - partial read (startLine/endLine) correctness and token savings
 - telemetry math: tokens avoided on partial reads, searches, and skeleton vs full file
