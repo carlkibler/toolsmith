@@ -59,7 +59,7 @@ test("scanAgentLogs reports adoption and large-file lost opportunities", async (
     {
       type: "response_item",
       timestamp: "2026-05-05T10:05:00.000Z",
-      payload: { type: "function_call", name: "exec_command", arguments: JSON.stringify({ cmd: "sed -n '1,240p' large.js", workdir: project }) },
+      payload: { type: "function_call", name: "exec_command", arguments: JSON.stringify({ cmd: "sed -n '1,340p' large.js", workdir: project }) },
     },
     {
       type: "response_item",

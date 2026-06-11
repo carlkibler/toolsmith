@@ -355,7 +355,9 @@ export default function toolsmithPiExtension(pi) {
       : name === "write"
         ? "pi_anchored_edit or pi_anchored_edit_many for existing files; write only for genuinely new files"
         : "pi_anchored_search + pi_anchored_edit, or pi_symbol_replace for one function"
-    const msg = `Toolsmith Pi tripwire: ${info.displayFile} is >200 lines (${info.lines} lines). Use ${use}.`
+    const threshold = info.maxLines || 200
+    const lines = !info.lines || info.lines === threshold + 1 ? `>${threshold} lines` : `${info.lines} lines`
+    const msg = `Toolsmith Pi tripwire: ${info.displayFile} is ${lines}. Use ${use}.`
     logTripwireFinding({ id, toolName: name, displayFile: info.displayFile, lines: info.lines })
     return { content: [{ type: "text", text: msg }] }
   })

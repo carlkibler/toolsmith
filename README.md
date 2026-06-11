@@ -127,7 +127,7 @@ TOOLSMITH_CODEX_FOOTER=1 codex "..."     # enable for a session
 
 ## The tripwire (nudge-only by default)
 
-`setup` installs a Claude `PreToolUse` hook that watches native `Read`/`Edit`/`Write` and shell `cat`/`sed`/`nl` on large files. **By default it only nudges** — a one-line message with the token cost and the Toolsmith tool to use instead. It never prompts, never blocks, and never auto-approves your op; your normal permission flow is untouched. It's the frictionless push: visible at the moment of choice, ignorable. Prose/reference reads get a wider lane: Markdown/text docs can be read whole up to a larger threshold, while edits to those files still use the normal large-file safety rail.
+`setup` installs a Claude `PreToolUse` hook that watches native `Read`/`Edit`/`Write` and shell `cat`/`sed`/`nl` on large files. **By default it only nudges** — a one-line message with the token cost and the Toolsmith tool to use instead. It never prompts, never blocks, and never auto-approves your op; your normal permission flow is untouched. It's the frictionless push: visible at the moment of choice, ignorable. Small bounded reads get a quiet lane too: native `Read` with an explicit range/limit up to ~300 lines is treated as normal inspection, even inside a huge file. Prose/reference reads get a wider lane: Markdown/text docs can be read whole up to a larger threshold, while edits to those files still use the normal large-file safety rail.
 
 Want a stronger push? Opt into firmer modes:
 

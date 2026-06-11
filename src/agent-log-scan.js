@@ -148,10 +148,10 @@ export function formatOpportunitiesText(scan) {
 }
 
 export function adoptionSnippet(client = "all") {
-  const block = `## Toolsmith large-file rule (token discipline)\n\nFor any file over ~200 lines, you MUST use Toolsmith (\`mcp__toolsmith__*\`) for navigation and edits. Do NOT use native Read/Edit/Write or shell \`cat\`/\`nl\`/\`sed -n\` on the whole file. Reading a large file natively burns 10–40× the tokens and throws away the line anchors that make edits safe. Native tools are only for genuinely small files, command output, or when Toolsmith is unavailable.\n\n- Explore structure first: \`file_skeleton\`\n- Find editable matches: \`find_and_anchor\` or \`anchored_search\`\n- Read one known symbol: \`get_function\`\n- Read a precise range: \`anchored_read --start/--end\`\n- Edit anchored lines: \`anchored_edit\` or \`anchored_edit_many\`\n- Single-symbol replacement: \`symbol_replace\`\n\nIf a native large-file read already happened, switch to Toolsmith before editing so anchors, validation, and telemetry exist.`
+  const block = `## Toolsmith large-file rule (token discipline)\n\nUse Toolsmith (\`mcp__toolsmith__*\`) for broad reads and edits in files over ~200 lines. Native Read with an explicit small range/limit up to ~300 lines is fine; whole-file reads, \`cat\`/\`nl\`, and broad \`sed -n\` ranges still burn 10–40× the tokens and throw away edit anchors.\n\n- Explore structure first: \`file_skeleton\`\n- Find editable matches: \`find_and_anchor\` or \`anchored_search\`\n- Read one known symbol: \`get_function\`\n- Read a precise range: \`anchored_read --start/--end\`\n- Edit anchored lines: \`anchored_edit\` or \`anchored_edit_many\`\n- Single-symbol replacement: \`symbol_replace\`\n\nIf a native bounded read already happened and you need to edit that area, switch to Toolsmith so anchors, validation, and telemetry exist.`
 
-  const codex = `${block}\n\nCodex shell habit replacements:\n- \`sed -n '1,260p' big.js\` -> \`anchored_read\` with a narrower range, or \`file_skeleton\` first\n- \`rg pattern && sed -n ...\` -> \`find_and_anchor\`\n- \`apply_patch\` on a large file is allowed, but prefer \`anchored_edit\` when changing lines already found by Toolsmith.`
-  const claude = `${block}\n\nClaude tool habit replacements:\n- Native Read on >200 lines -> \`file_skeleton\`, \`get_function\`, or bounded \`anchored_read\`\n- Native Edit/Write on >200 lines -> read anchors first, then \`anchored_edit\`\n- For one function/class body, \`symbol_replace\` is the fastest path.`
+  const codex = `${block}\n\nCodex shell habit replacements:\n- Narrow \`sed -n\` ranges are fine for inspection; use \`anchored_read\` when you will edit\n- \`rg pattern && sed -n ...\` -> \`find_and_anchor\` when you need editable anchors\n- \`apply_patch\` on a large file is allowed, but prefer \`anchored_edit\` when changing lines already found by Toolsmith.`
+  const claude = `${block}\n\nClaude tool habit replacements:\n- Broad native Read on >200 lines -> \`file_skeleton\`, \`get_function\`, or bounded \`anchored_read\`\n- Native Read with \`offset\` + small \`limit\` (≤300 lines) is okay for inspection\n- Native Edit/Write on >200 lines -> read anchors first, then \`anchored_edit\`\n- For one function/class body, \`symbol_replace\` is the fastest path.`
   const gemini = `${block}\n\nGemini CLI note: call Toolsmith MCP tools directly when editing large files; do not rely on shell excerpts unless the requested range is already small.`
 
   if (client === "codex") return codex
@@ -298,7 +298,7 @@ function classifyNativeRead({ agent, ref, resultContent }, stats) {
   const lines = cachedLineCount(target, stats)
   const resultLines = countContentLines(resultContent)
   const limit = Number(input.limit || 0)
-  const large = (resultLines && resultLines > 220) || (lines && lines > 200 && (!limit || limit > 160))
+  const large = (resultLines && resultLines > 300) || (lines && lines > 200 && (!limit || limit > 300))
   if (!large) return
   addLost(stats, "claude_native_read_large_file", {
     agent,
@@ -351,7 +351,7 @@ function classifyShellCommand(command, cwd, meta, stats) {
       const target = resolveTarget(firstShellToken(pathText), cwd)
       const lines = cachedLineCount(target, stats)
       if (!lines || lines <= 200) continue
-      const hard = kind === "cat" || kind === "nl" || (requested && requested > 160)
+      const hard = kind === "cat" || kind === "nl" || (requested && requested > 300)
       if (!hard) continue
       addLost(stats, `${meta.agent}_shell_${kind}_large_file`, {
         agent: meta.agent,
