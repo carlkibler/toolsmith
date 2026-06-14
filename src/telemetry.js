@@ -30,3 +30,21 @@ export function makeTelemetry({ operation, workspaceKey, fullContent = "", reque
 export function attachTelemetry(result, telemetry) {
   return { ...result, telemetry }
 }
+
+// Replace a read-family telemetry's naive whole-file savings with the session-deduped
+// increment from the store ledger, so reading one file in N chunks can't claim N x the
+// file. estimatedTokensAvoided becomes the signed per-call increment (the rollup sums
+// these to the honest cumulative); cumulativeTokensAvoided is kept for transparency.
+export function applyReadCredit(telemetry, store, { path, sessionId, workspaceKey, hash } = {}) {
+  if (!telemetry || !store || typeof store.creditRead !== "function") return telemetry
+  const credit = store.creditRead(path, {
+    sessionId,
+    workspaceKey,
+    hash,
+    baselineTokens: telemetry.estimatedFullTokens || 0,
+    responseTokens: telemetry.estimatedResponseTokens || 0,
+  })
+  telemetry.estimatedTokensAvoided = credit.incrementalAvoided
+  telemetry.cumulativeTokensAvoided = credit.cumulativeAvoided
+  return telemetry
+}

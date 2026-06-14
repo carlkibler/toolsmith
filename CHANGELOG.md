@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.1.51 — 2026-06-14
+
+Token-savings accounting was inflated and rewarded the wrong behavior. It now tells the truth.
+
+- **Read savings are deduplicated per file within a session.** `anchored_read`, `file_skeleton`, `get_function`, and `anchored_search` share a per-`(workspace, session, file)` ledger: the whole-file baseline is credited once, and each read spends its actual response tokens (anchor overhead included). `estimatedTokensAvoided` is now a signed per-call increment whose cumulative can never exceed reading the file once. Reading a 1,000-line file in five chunks used to report "~8,000 saved" on every call (summing to ~5× the file); it now reports the real net, and re-reads show no additional savings.
+- **`find_and_anchor` credits matched files, not the scanned corpus.** A directory search that walks 80 files and matches none now reports `0` saved instead of crediting every byte it scanned (previously ~200K tokens of fiction). The realistic alternative to a search is `grep`, not reading every candidate whole.
+- **Misses report `0`, not the whole file.** A `get_function` symbol-not-found or an errored `anchored_search` returned no content, so it now claims no savings.
+- **Effect on the numbers you see:** the Codex footer and `audit` "tokens saved" totals drop to honest values going forward; historical log entries are not rewritten. The metric now separates surgical use (large real savings) from whole-file chunk-reading (near zero) instead of flashing green for both.
+
 - Silence the Claude tripwire for explicit small native reads (≤300 lines) even inside very large files; keep broad reads/edits protected, stop reporting threshold artifacts like `201 lines`, and align audit/session-scan heuristics with the quieter cutoff.
 
 ## 0.1.50 — 2026-06-09

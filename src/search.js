@@ -1,9 +1,9 @@
 import { contentHash } from "./hash.js"
 import { formatAnchoredLine, splitLines } from "./anchors.js"
-import { makeTelemetry } from "./telemetry.js"
+import { makeTelemetry, applyReadCredit } from "./telemetry.js"
 import { checkRegexSafety } from "./regex-safety.js"
 
-export function searchAnchored({ path, content, store, sessionId, workspaceKey, query, regex = false, caseSensitive = false, contextLines = 1, maxMatches = 20 }) {
+export function searchAnchored({ path, content, store, sessionId, workspaceKey, query, regex = false, caseSensitive = false, contextLines = 1, maxMatches = 20, credit = true }) {
   if (!store) throw new Error("searchAnchored requires an AnchorStore")
   if (!query || typeof query !== "string") throw new Error("query is required")
 
@@ -15,7 +15,9 @@ export function searchAnchored({ path, content, store, sessionId, workspaceKey, 
   } catch (e) {
     const wsTag = workspaceKey ? `[Workspace: ${workspaceKey}] ` : ""
     const text = `${wsTag}[File: ${path}] [Error: ${e.message}]`
-    return { path, fileHash: contentHash(content), query, regex, caseSensitive, contextLines, maxMatches, matches: [], text, error: e.message, telemetry: makeTelemetry({ operation: "anchored_search", fullContent: content, requestPayload: { path, sessionId, query, regex, caseSensitive, contextLines, maxMatches }, responseText: text, anchors: [] }) }
+    const errTelemetry = makeTelemetry({ operation: "anchored_search", fullContent: content, requestPayload: { path, sessionId, query, regex, caseSensitive, contextLines, maxMatches }, responseText: text, anchors: [] })
+    errTelemetry.estimatedTokensAvoided = 0 // an errored search returns no content — it avoided nothing
+    return { path, fileHash: contentHash(content), query, regex, caseSensitive, contextLines, maxMatches, matches: [], text, error: e.message, telemetry: errTelemetry }
   }
   const matches = []
   const matchedAnchors = []
@@ -42,9 +44,17 @@ export function searchAnchored({ path, content, store, sessionId, workspaceKey, 
   const truncated = totalMatches > matches.length
   const text = formatSearchText({ path, content, workspaceKey, matches, ranges, anchors, lines, truncated })
   const emittedAnchors = anchorsForRanges(ranges, anchors)
+  const fileHash = contentHash(content)
+  const telemetry = {
+    ...makeTelemetry({ operation: "anchored_search", fullContent: content, requestPayload: { path, sessionId, query, regex, caseSensitive, contextLines, maxMatches }, responseText: text, anchors: emittedAnchors }),
+    matchAnchorCount: matchedAnchors.length,
+    emittedAnchorCount: emittedAnchors.length,
+  }
+  // credit=false when called inside find_and_anchor, which credits matched-file bytes itself.
+  if (credit) applyReadCredit(telemetry, store, { path, sessionId, workspaceKey, hash: fileHash })
   return {
     path,
-    fileHash: contentHash(content),
+    fileHash,
     query,
     regex,
     caseSensitive,
@@ -55,11 +65,7 @@ export function searchAnchored({ path, content, store, sessionId, workspaceKey, 
     totalMatches,
     truncated,
     text,
-    telemetry: {
-      ...makeTelemetry({ operation: "anchored_search", fullContent: content, requestPayload: { path, sessionId, query, regex, caseSensitive, contextLines, maxMatches }, responseText: text, anchors: emittedAnchors }),
-      matchAnchorCount: matchedAnchors.length,
-      emittedAnchorCount: emittedAnchors.length,
-    },
+    telemetry,
   }
 }
 
