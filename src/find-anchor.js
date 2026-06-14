@@ -41,6 +41,7 @@ export async function findAndAnchor({
   const sections = []
   let scannedFiles = 0
   let scannedBytes = 0
+  let matchedBytes = 0
   let truncated = collection.truncatedCandidates
   let searchError = null
 
@@ -70,6 +71,7 @@ export async function findAndAnchor({
       caseSensitive,
       contextLines,
       maxMatches: isDirectory ? Math.min(maxMatches - matches.length, perFileLimit) : maxMatches - matches.length,
+      credit: false,
     })
     if (result.error) {
       searchError = `${file.relative}: ${result.error}`
@@ -78,6 +80,7 @@ export async function findAndAnchor({
     }
     if (result.truncated) truncated = true
     if (result.matches.length === 0) continue
+    matchedBytes += Buffer.byteLength(content, "utf8")
     sections.push(result.text)
     for (const match of result.matches) matches.push({ ...match, path: file.relative, fileHash: contentHash(content) })
   }
@@ -105,7 +108,7 @@ export async function findAndAnchor({
     truncated,
     error: searchError,
     text,
-    telemetry: telemetry({ operation: "find_and_anchor", scannedBytes, requestPayload: { path: rootRelative, query, regex, caseSensitive, contextLines, maxMatches, maxFiles, maxMatchesPerFile: perFileLimit, glob, sessionId }, responseText: text, anchorCount: matches.length }),
+    telemetry: telemetry({ operation: "find_and_anchor", scannedBytes, matchedBytes, requestPayload: { path: rootRelative, query, regex, caseSensitive, contextLines, maxMatches, maxFiles, maxMatchesPerFile: perFileLimit, glob, sessionId }, responseText: text, anchorCount: matches.length }),
   }
 }
 
@@ -200,18 +203,26 @@ function globToRegExp(glob) {
   return new RegExp(`^${out}$`)
 }
 
-function telemetry({ operation, scannedBytes, requestPayload, responseText, anchorCount }) {
+// Savings baseline is matchedBytes (the files that actually contained a hit), NOT
+// scannedBytes (the whole walked corpus). The realistic alternative to find_and_anchor
+// is grep — you would never read all 80 scanned files. Crediting the corpus produced
+// absurd "saved ~200K tokens" on 0-match scans. matchedBytes credits only "you would
+// have opened the files that matched", and a 0-match search avoids nothing.
+function telemetry({ operation, scannedBytes, matchedBytes = 0, requestPayload, responseText, anchorCount }) {
   const requestBytes = Buffer.byteLength(JSON.stringify(requestPayload || {}), "utf8")
   const responseBytes = Buffer.byteLength(String(responseText || ""), "utf8")
+  const baselineTokens = Math.ceil(matchedBytes / 4)
+  const responseTokens = estimateTokens(responseText)
   return {
     operation,
-    fullBytes: scannedBytes,
+    fullBytes: matchedBytes,
+    scannedBytes,
     requestBytes,
     responseBytes,
-    avoidedBytes: Math.max(0, scannedBytes - responseBytes),
-    estimatedFullTokens: Math.ceil(scannedBytes / 4),
-    estimatedResponseTokens: estimateTokens(responseText),
-    estimatedTokensAvoided: Math.max(0, Math.ceil(scannedBytes / 4) - estimateTokens(responseText)),
+    avoidedBytes: Math.max(0, matchedBytes - responseBytes),
+    estimatedFullTokens: baselineTokens,
+    estimatedResponseTokens: responseTokens,
+    estimatedTokensAvoided: Math.max(0, baselineTokens - responseTokens),
     anchorCount,
   }
 }

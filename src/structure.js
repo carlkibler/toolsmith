@@ -1,6 +1,6 @@
 import { contentHash } from "./hash.js"
 import { formatAnchoredLine, splitLines } from "./anchors.js"
-import { makeTelemetry } from "./telemetry.js"
+import { makeTelemetry, applyReadCredit } from "./telemetry.js"
 
 export function fileSkeleton({ path, content, store, sessionId, workspaceKey, maxLines = 200 }) {
   if (!store) throw new Error("fileSkeleton requires an AnchorStore")
@@ -18,7 +18,10 @@ export function fileSkeleton({ path, content, store, sessionId, workspaceKey, ma
   const truncated = entries.length > maxLines
   const visibleEntries = truncated ? entries.slice(0, maxLines) : entries
   const text = formatSkeletonText({ path, content, workspaceKey, entries: visibleEntries, truncated })
-  return { path, fileHash: contentHash(content), entries: visibleEntries, maxLines, text, telemetry: makeTelemetry({ operation: "file_skeleton", fullContent: content, requestPayload: { path, sessionId, maxLines }, responseText: text, anchors: visibleEntries.map((entry) => entry.anchor) }) }
+  const fileHash = contentHash(content)
+  const telemetry = makeTelemetry({ operation: "file_skeleton", fullContent: content, requestPayload: { path, sessionId, maxLines }, responseText: text, anchors: visibleEntries.map((entry) => entry.anchor) })
+  applyReadCredit(telemetry, store, { path, sessionId, workspaceKey, hash: fileHash })
+  return { path, fileHash, entries: visibleEntries, maxLines, text, telemetry }
 }
 
 export function getFunction({ path, content, store, sessionId, workspaceKey, name, contextLines = 0, maxLines = 400 }) {
@@ -30,7 +33,9 @@ export function getFunction({ path, content, store, sessionId, workspaceKey, nam
   const workspaceTag = workspaceKey ? `[Workspace: ${workspaceKey}] ` : ""
   if (!range) {
     const text = `${workspaceTag}[File: ${path}] [File Hash: ${contentHash(content)}]\n(symbol not found: ${name})`
-    return { path, fileHash: contentHash(content), name, found: false, text, telemetry: makeTelemetry({ operation: "get_function", fullContent: content, requestPayload: { path, sessionId, name, contextLines, maxLines }, responseText: text }) }
+    const telemetry = makeTelemetry({ operation: "get_function", fullContent: content, requestPayload: { path, sessionId, name, contextLines, maxLines }, responseText: text })
+    telemetry.estimatedTokensAvoided = 0 // a miss returns no content — it avoided nothing
+    return { path, fileHash: contentHash(content), name, found: false, text, telemetry }
   }
 
   const { startIndex, endIndex } = range
@@ -38,10 +43,13 @@ export function getFunction({ path, content, store, sessionId, workspaceKey, nam
   const end = Math.min(lines.length, Math.min(endIndex + 1 + contextLines, start + maxLines))
   const body = lines.slice(start, end).map((line, offset) => formatAnchoredLine(anchors[start + offset], line)).join("\n")
   const truncated = end < endIndex + 1 + contextLines
-  const text = `${workspaceTag}[File: ${path}] [File Hash: ${contentHash(content)}] [Symbol: ${name}] [Lines: ${start + 1}-${end}${truncated ? "+" : ""}]\n${body}`
+  const fileHash = contentHash(content)
+  const text = `${workspaceTag}[File: ${path}] [File Hash: ${fileHash}] [Symbol: ${name}] [Lines: ${start + 1}-${end}${truncated ? "+" : ""}]\n${body}`
+  const telemetry = makeTelemetry({ operation: "get_function", fullContent: content, requestPayload: { path, sessionId, name, contextLines, maxLines }, responseText: text, anchors: anchors.slice(start, end) })
+  applyReadCredit(telemetry, store, { path, sessionId, workspaceKey, hash: fileHash })
   return {
     path,
-    fileHash: contentHash(content),
+    fileHash,
     name,
     found: true,
     startLine: start + 1,
@@ -50,7 +58,7 @@ export function getFunction({ path, content, store, sessionId, workspaceKey, nam
     symbolEndLine: endIndex + 1,
     truncated,
     text,
-    telemetry: makeTelemetry({ operation: "get_function", fullContent: content, requestPayload: { path, sessionId, name, contextLines, maxLines }, responseText: text, anchors: anchors.slice(start, end) }),
+    telemetry,
   }
 }
 

@@ -17,7 +17,7 @@ Implemented pieces:
   - repo/file search with `find_and_anchor` for anchored snippets across candidate files; directory searches rank candidates by zero-dep BM25 relevance (most relevant first, so the match budget lands on the best files) and honor a `.toolsmithignore` file (gitignore syntax, `!` force-include) at the search root
   - compact structural reads with `file_skeleton` and `get_function`
   - safe symbol-scoped replacements with `symbol_replace`
-  - lightweight telemetry for bytes/tokens avoided, request/response size, anchor count, and edit deltas
+  - lightweight telemetry for bytes/tokens avoided, request/response size, anchor count, and edit deltas; read-family savings are session-deduped via a per-(workspace,session,file) ledger in `AnchorStore` — the whole-file baseline is credited once and each read spends its actual response tokens, so `estimatedTokensAvoided` is a signed per-call increment whose cumulative can never exceed reading the file once (re-reading a file in N chunks no longer claims ~N× the file); `find_and_anchor` credits matched-file bytes (its realistic grep alternative), not the scanned corpus, so a 0-match scan reports 0 saved
   - atomic single-file batched edits
   - atomic multi-file edit orchestration in filesystem wrapper
   - unchanged-line anchor preservation across nearby edits

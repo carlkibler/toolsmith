@@ -91,10 +91,34 @@ function reconcileGreedy(previousHashes, previousAnchors, currentHashes, path, u
 
 export class AnchorStore {
   #documents = new Map()
+  #credits = new Map()
   #maxDocuments
 
   constructor({ maxDocuments = 200 } = {}) {
     this.#maxDocuments = maxDocuments
+  }
+
+  // Per-(workspace,session,file) read ledger. The honest counterfactual for reading
+  // a file is reading it whole ONCE (= baselineTokens). Each read of that file spends
+  // its actual response tokens (which include anchor overhead). Cumulative avoided is
+  // max(0, baseline - total spent), so re-reading the same file in many chunks can
+  // never claim more than reading it once would have cost. The per-call increment is
+  // (cumulativeAfter - cumulativePrev): positive on first contact, <=0 on re-reads.
+  // hash mismatch (file changed) resets the baseline. Returns signed incrementalAvoided.
+  creditRead(path, { sessionId, workspaceKey, hash, baselineTokens = 0, responseTokens = 0 } = {}) {
+    const key = makeKey(workspaceKey, sessionId, path)
+    const existing = this.#credits.get(key)
+    const entry = existing && existing.hash === hash ? existing : { hash, baselineTokens, spentTokens: 0 }
+    const spentBefore = entry.spentTokens
+    const cumPrev = spentBefore === 0 ? 0 : Math.max(0, entry.baselineTokens - spentBefore)
+    entry.spentTokens = spentBefore + Math.max(0, responseTokens)
+    const cumAfter = Math.max(0, entry.baselineTokens - entry.spentTokens)
+    this.#credits.delete(key)
+    this.#credits.set(key, entry)
+    if (this.#credits.size > this.#maxDocuments) {
+      this.#credits.delete(this.#credits.keys().next().value)
+    }
+    return { baselineTokens: entry.baselineTokens, spentTokens: entry.spentTokens, cumulativeAvoided: cumAfter, incrementalAvoided: cumAfter - cumPrev }
   }
 
   reconcile(path, content, options = {}) {

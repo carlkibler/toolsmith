@@ -386,19 +386,23 @@ export function summarizeUsage(records) {
           summary.agentTelemetryCalls++
           summary.agentMaxFullBytes = Math.max(summary.agentMaxFullBytes, telemetry.fullBytes || 0)
         }
-        if (telemetry.estimatedTokensAvoided) {
+        // estimatedTokensAvoided is a signed per-call increment for the read family
+        // (re-reads of a file net <=0), so sum the signed value to get the honest
+        // cumulative, but only COUNT calls that actually saved (>0).
+        const avoided = telemetry.estimatedTokensAvoided || 0
+        if (avoided) {
           const isEditTool = /edit|replace/.test(record.tool || "")
-          summary.estimatedTokensAvoided += telemetry.estimatedTokensAvoided
-          summary.positiveSavingsCalls++
-          summary.tokensAvoidedByTool[record.tool || "unknown"] = (summary.tokensAvoidedByTool[record.tool || "unknown"] || 0) + telemetry.estimatedTokensAvoided
-          if (isEditTool) summary.editTokensAvoided += telemetry.estimatedTokensAvoided
-          else summary.readTokensAvoided += telemetry.estimatedTokensAvoided
+          summary.estimatedTokensAvoided += avoided
+          if (avoided > 0) summary.positiveSavingsCalls++
+          summary.tokensAvoidedByTool[record.tool || "unknown"] = (summary.tokensAvoidedByTool[record.tool || "unknown"] || 0) + avoided
+          if (isEditTool) summary.editTokensAvoided += avoided
+          else summary.readTokensAvoided += avoided
           if (!harness) {
-            summary.agentEstimatedTokensAvoided += telemetry.estimatedTokensAvoided
-            summary.agentPositiveSavingsCalls++
-            summary.agentTokensAvoidedByTool[record.tool || "unknown"] = (summary.agentTokensAvoidedByTool[record.tool || "unknown"] || 0) + telemetry.estimatedTokensAvoided
-            if (isEditTool) summary.agentEditTokensAvoided += telemetry.estimatedTokensAvoided
-            else summary.agentReadTokensAvoided += telemetry.estimatedTokensAvoided
+            summary.agentEstimatedTokensAvoided += avoided
+            if (avoided > 0) summary.agentPositiveSavingsCalls++
+            summary.agentTokensAvoidedByTool[record.tool || "unknown"] = (summary.agentTokensAvoidedByTool[record.tool || "unknown"] || 0) + avoided
+            if (isEditTool) summary.agentEditTokensAvoided += avoided
+            else summary.agentReadTokensAvoided += avoided
           }
         }
       }
