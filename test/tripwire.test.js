@@ -62,6 +62,10 @@ test("tripwire run emits Claude hook JSON and logs fired nudges", async () => {
     assert.equal(out.hookSpecificOutput, undefined)
     const rows = (await fs.readFile(logPath, "utf8")).trim().split("\n").map((line) => JSON.parse(line))
     assert.equal(rows[0].id, "native-edit-large-file")
+    assert.equal(rows[0].requestedMode, "allow")
+    assert.equal(rows[0].mode, "allow")
+    assert.equal(rows[0].decision, "nudge")
+    assert.equal(rows[0].fires, 0)
   } finally {
     await fs.rm(dir, { recursive: true, force: true })
   }
@@ -78,12 +82,16 @@ test("tripwire log summary tolerates missing and malformed rows", async () => {
     await fs.writeFile(logPath, [
       JSON.stringify({ ts: "2026-05-07T00:00:00.000Z", id: "shell-sed" }),
       "not-json",
-      JSON.stringify({ ts: "2026-05-07T01:00:00.000Z", id: "shell-sed" }),
-      JSON.stringify({ ts: "2026-05-07T02:00:00.000Z", id: "native-read-large-file" }),
+      JSON.stringify({ ts: "2026-05-07T01:00:00.000Z", id: "shell-sed", decision: "nudge" }),
+      JSON.stringify({ ts: "2026-05-07T02:00:00.000Z", id: "native-read-large-file", decision: "ask", mode: "ask" }),
     ].join("\n") + "\n", "utf8")
     const summary = summarizeTripwireLog({ logPath, sinceMs: Date.parse("2026-05-07T00:30:00.000Z") })
     assert.equal(summary.total, 2)
     assert.deepEqual(summary.byId, { "shell-sed": 1, "native-read-large-file": 1 })
+    assert.deepEqual(summary.byDecision, { nudge: 1, ask: 1 })
+    assert.equal(summary.firmPrompts, 1)
+    await fs.writeFile(logPath, JSON.stringify({ ts: "2026-05-07T03:00:00.000Z", id: "native-edit-large-file", decision: "deny", mode: "deny" }) + "\n", { flag: "a" })
+    assert.equal(summarizeTripwireLog({ logPath }).firmPrompts, 2)
     assert.equal(summary.latestTs, "2026-05-07T02:00:00.000Z")
   } finally {
     await fs.rm(dir, { recursive: true, force: true })

@@ -4,6 +4,7 @@ import os from "node:os"
 import path from "node:path"
 import test from "node:test"
 import { execFile } from "node:child_process"
+import { evaluateDrift } from "../lib/config.js"
 import { promisify } from "node:util"
 
 const execFileAsync = promisify(execFile)
@@ -61,6 +62,37 @@ test("doctor: Codex ok when path matches this checkout", async () => {
   assert.match(stdout, /Codex: command points at this checkout/)
   assert.doesNotMatch(stdout, /Codex: registered path does not exist/)
   assert.doesNotMatch(stdout, /Codex: registered .+, expected/)
+})
+
+test("evaluateDrift accepts a same-version canonical checkout path as healthy", async () => {
+  const expectedRoot = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-expected-"))
+  try {
+    const configured = path.resolve("bin/toolsmith-mcp.js")
+    const expected = path.join(expectedRoot, "lib", "node_modules", "@carlkibler", "toolsmith", "bin", "toolsmith-mcp.js")
+    const drift = evaluateDrift("Codex", configured, expected, process.execPath)
+    assert.equal(drift.state, "ok")
+    assert.match(drift.message, /canonical checkout/)
+  } finally {
+    await fs.rm(expectedRoot, { recursive: true, force: true })
+  }
+})
+
+test("evaluateDrift warns when an alternate canonical checkout has a different version", async () => {
+  const repo = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-altrepo-"))
+  try {
+    await fs.mkdir(path.join(repo, "bin"), { recursive: true })
+    await fs.writeFile(path.join(repo, "package.json"), JSON.stringify({ version: "0.0.0" }), "utf8")
+    await fs.writeFile(path.join(repo, "bin", "toolsmith-mcp.js"), "// fake", "utf8")
+    await execFileAsync("git", ["-C", repo, "init"])
+    await execFileAsync("git", ["-C", repo, "remote", "add", "origin", "git@github.com:carlkibler/toolsmith.git"])
+
+    const expected = path.resolve("bin/toolsmith-mcp.js")
+    const drift = evaluateDrift("Codex", path.join(repo, "bin", "toolsmith-mcp.js"), expected, process.execPath)
+    assert.equal(drift.state, "drift")
+    assert.match(drift.message, /v0\.0\.0/)
+  } finally {
+    await fs.rm(repo, { recursive: true, force: true })
+  }
 })
 
 test("doctor: stale global Node install warning when fake prefix has package dir", async () => {

@@ -184,21 +184,35 @@ test("opt-in adaptive escalates allow → ask and never auto-denies", async () =
   }
 })
 
-test("opt-in adaptive never hard-blocks a READ — caps at ask even after many bypasses", async () => {
+
+test("opt-in adaptive asks on repeated MultiEdit large-file bypasses", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-multiedit-"))
+  const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-multiedit-state-"))
+  try {
+    const file = await makeLargeFile(dir)
+    const payload = JSON.stringify({ tool_name: "MultiEdit", tool_input: { file_path: file }, cwd: dir, session_id: "multiedit" })
+    let last = "allow"
+    for (let i = 0; i < 3; i += 1) last = decisionOf(runTripwire(payload, ["--mode", "adaptive"], { TOOLSMITH_STATE_DIR: state, TOOLSMITH_TRIPWIRE_LOG: "0", TOOLSMITH_NO_UPDATE_CHECK: "1" }).stdout)
+    assert.equal(last, "ask")
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+    await fs.rm(state, { recursive: true, force: true })
+  }
+})
+
+test("opt-in adaptive stays nudge-only for READ to avoid retry-turn tax", async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-read-cap-"))
   const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-read-cap-state-"))
   try {
     const file = await makeLargeFile(dir)
     const payload = JSON.stringify({ tool_name: "Read", tool_input: { file_path: file }, cwd: dir, session_id: "read-cap" })
-    let last = "allow"
     for (let i = 0; i < 10; i += 1) {
-      last = decisionOf(spawnSync(process.execPath, [CLI, "tripwire", "run", "--format", "claude", "--mode", "adaptive"], {
+      const decision = decisionOf(spawnSync(process.execPath, [CLI, "tripwire", "run", "--format", "claude", "--mode", "adaptive"], {
         input: payload, encoding: "utf8",
         env: { ...process.env, TOOLSMITH_STATE_DIR: state, TOOLSMITH_TRIPWIRE_LOG: "0", TOOLSMITH_NO_UPDATE_CHECK: "1" },
       }).stdout)
-      assert.notEqual(last, "deny", `read should never be denied (fire ${i + 1})`)
+      assert.equal(decision, "allow", `read should stay a nudge (fire ${i + 1})`)
     }
-    assert.equal(last, "ask") // firmest a read ever gets
   } finally {
     await fs.rm(dir, { recursive: true, force: true })
     await fs.rm(state, { recursive: true, force: true })
