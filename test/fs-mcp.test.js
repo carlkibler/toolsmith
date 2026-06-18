@@ -197,14 +197,16 @@ test("MCP server lists and calls anchored tools", async () => {
 
     await fs.writeFile(path.join(cwd, "code.js"), "function demo() {\n  return 1\n}\n", "utf8")
     const skeleton = await client.callTool("file_skeleton", { path: "code.js", sessionId: "mcp" })
-    assert.doesNotMatch(skeleton.content[0].text, /§function demo/)
-    assert.equal(skeleton.content[0].text, "File skeleton code.js: 1 entry.")
-    assert.match(skeleton.structuredContent.text, /§function demo/)
+    assert.match(skeleton.content[0].text, /§function demo/)
+    assert.equal(skeleton.structuredContent.text, undefined)
+    assert.equal(skeleton.structuredContent.entries[0].text, undefined)
+    assert.equal(skeleton.structuredContent.entries[0].anchor, undefined)
+    assert.equal(skeleton.structuredContent.compression.strategy, "lossless_mcp_result_trim")
 
     const fn = await client.callTool("get_function", { path: "code.js", name: "demo", sessionId: "mcp" })
     assert.equal(fn.isError, false)
-    assert.doesNotMatch(fn.content[0].text, /§  return 1/)
-    assert.match(fn.structuredContent.text, /§  return 1/)
+    assert.match(fn.content[0].text, /§  return 1/)
+    assert.equal(fn.structuredContent.text, undefined)
 
     const sym = await client.callTool("symbol_replace", { path: "code.js", name: "demo", search: "return 1", replacement: "return 2", sessionId: "mcp" })
     assert.equal(sym.isError, false)
@@ -212,24 +214,27 @@ test("MCP server lists and calls anchored tools", async () => {
 
     const found = await client.callTool("find_and_anchor", { path: ".", query: "return 2", glob: "*.js", sessionId: "mcp-find", maxMatches: 3 })
     assert.notEqual(found.isError, true)
-    assert.doesNotMatch(found.content[0].text, /§  return 2/)
-    assert.match(found.structuredContent.text, /\[Find: return 2\]/)
-    assert.match(found.structuredContent.text, /code\.js/)
-    assert.match(found.structuredContent.text, /§  return 2/)
+    assert.match(found.content[0].text, /\[Find: return 2\]/)
+    assert.match(found.content[0].text, /code\.js/)
+    assert.match(found.content[0].text, /§  return 2/)
+    assert.equal(found.structuredContent.text, undefined)
+    assert.equal(found.structuredContent.matches[0].text, undefined)
+    assert.equal(found.structuredContent.matches[0].snippet, undefined)
 
     const search = await client.callTool("anchored_search", { path: "demo.txt", query: "green", sessionId: "mcp", contextLines: 0 })
-    assert.doesNotMatch(search.content[0].text, /§green/)
-    assert.match(search.structuredContent.text, /§green/)
+    assert.match(search.content[0].text, /§green/)
+    assert.equal(search.structuredContent.text, undefined)
 
     const badSearch = await client.callTool("anchored_search", { path: "demo.txt", query: "(x+)+$", regex: true, sessionId: "mcp" })
     assert.equal(badSearch.isError, true)
-    assert.match(badSearch.content[0].text, /failed/)
+    assert.match(badSearch.content[0].text, /Error|failed/)
     assert.match(badSearch.structuredContent.error, /catastrophic/)
 
     const read = await client.callTool("anchored_read", { path: "demo.txt", sessionId: "mcp" })
-    assert.doesNotMatch(read.content[0].text, /§green/)
-    assert.equal(read.content[0].text, "Anchored read demo.txt (3 line(s); 3 anchor(s)).")
-    const readText = read.structuredContent.text
+    assert.match(read.content[0].text, /§green/)
+    assert.equal(read.structuredContent.text, undefined)
+    assert.equal(read.structuredContent.anchors, undefined)
+    const readText = read.content[0].text
     assert.match(readText, /§green/)
     const greenLine = readText.split("\n").find((line) => line.endsWith("§green"))
 
@@ -256,7 +261,22 @@ test("MCP server lists and calls anchored tools", async () => {
   }
 })
 
-test("MCP verbose mode returns anchored text in content", async () => {
+test("MCP compact tool surface exposes only the router and routes calls", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "code.js"), "function demo() {\n  return 1\n}\n", "utf8")
+  const client = await McpTestClient.start(path.resolve("bin/toolsmith-mcp.js"), cwd, { TOOLSMITH_COMPACT_TOOLS: "1" })
+  try {
+    const { tools } = await client.listTools()
+    assert.deepEqual(tools.map((tool) => tool.name), ["toolsmith"])
+    const result = await client.callTool("toolsmith", { action: "skeleton", arguments: { path: "code.js", sessionId: "router" } })
+    assert.match(result.content[0].text, /§function demo/)
+    assert.equal(result.structuredContent.text, undefined)
+  } finally {
+    await client.close()
+  }
+})
+
+test("MCP verbose mode preserves anchored text in content and structured content", async () => {
   const cwd = await tempWorkspace()
   await fs.writeFile(path.join(cwd, "demo.txt"), "alpha\nbeta", "utf8")
 
@@ -405,8 +425,8 @@ test("MCP anchored_edit_many applies cross-file batch", async () => {
 
     const oneRead = await client.callTool("anchored_read", { path: "one.txt", sessionId: "many-mcp" })
     const twoRead = await client.callTool("anchored_read", { path: "two.txt", sessionId: "many-mcp" })
-    const aLine = oneRead.structuredContent.text.split("\n").find((line) => line.endsWith("§a"))
-    const dLine = twoRead.structuredContent.text.split("\n").find((line) => line.endsWith("§d"))
+    const aLine = oneRead.content[0].text.split("\n").find((line) => line.endsWith("§a"))
+    const dLine = twoRead.content[0].text.split("\n").find((line) => line.endsWith("§d"))
 
     const result = await client.callTool("anchored_edit_many", {
       sessionId: "many-mcp",
@@ -457,14 +477,15 @@ test("WorkspaceTools findAndAnchor glob ** matches root and nested files", async
   assert(result.matches.some((match) => match.path === "nested/child.js"))
 })
 
-test("MCP anchored_read summary includes savings hint for partial reads of large files", async () => {
+test("MCP summary result mode includes savings hint for partial reads of large files", async () => {
   const cwd = await tempWorkspace()
   const lines = Array.from({ length: 200 }, (_, i) => `line${i + 1} content with extra padding text here`)
   await fs.writeFile(path.join(cwd, "large.txt"), lines.join("\n"), "utf8")
-  const client = await McpTestClient.start(path.resolve("bin/toolsmith-mcp.js"), cwd)
+  const client = await McpTestClient.start(path.resolve("bin/toolsmith-mcp.js"), cwd, { TOOLSMITH_MCP_RESULT_MODE: "summary" })
   try {
     const read = await client.callTool("anchored_read", { path: "large.txt", sessionId: "savings", startLine: 1, endLine: 5 })
     assert.match(read.content[0].text, /saved ~[0-9]+ tokens/, "partial read of large file must include savings hint")
+    assert.match(read.structuredContent.text, /§line1/)
   } finally {
     await client.close()
   }

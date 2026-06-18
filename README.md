@@ -78,6 +78,26 @@ Skip pieces: `toolsmith setup --no-priming --no-codex-footer`. Before editing a 
 | `anchored_edit_many` | Same as `anchored_edit`, across multiple files atomically |
 | `anchored_edit_status` | Show active anchor sessions and registered files |
 
+### Compact result mode and compact tool surface
+
+Toolsmith borrows the useful part of gateway-style token compression, but keeps it local. MCP results default to `TOOLSMITH_MCP_RESULT_MODE=compact`: the agent receives the anchored text once, while duplicate structured fields (`text`, `anchors`, snippets, full content) are stripped and replaced with a local compression receipt. Use `TOOLSMITH_MCP_RESULT_MODE=summary` for the older summary-first shape, or `TOOLSMITH_MCP_RESULT_MODE=verbose` / `TOOLSMITH_VERBOSE=1` when debugging raw payloads.
+
+If your client has many MCP servers and tool definitions are crowding context, opt into a virtual one-tool surface:
+
+```bash
+TOOLSMITH_COMPACT_TOOLS=1 toolsmith-mcp
+```
+
+The model sees one `toolsmith` router tool, then passes `action`/`tool` plus normal arguments. Nothing routes through a third-party gateway.
+
+For noisy shell output, trim terminal framing locally:
+
+```bash
+npm test 2>&1 | toolsmith compact-output --max-repeated 3
+```
+
+`compact-output` strips ANSI/pager/progress noise and collapses repeated lines, printing the compacted text to stdout. Add `--receipt` to print the local compression receipt to stderr.
+
 ## How it works
 
 Standard `Read` sends the entire file into context. `anchored_read` sends only the requested range, with stable opaque anchors on every line (`Aabc123§const x = 1`). `anchored_edit` validates those anchors still match before writing — stale edits fail immediately instead of silently overwriting.
@@ -173,7 +193,7 @@ const result = applyAnchoredEdits({
 
 ## Privacy
 
-**Toolsmith sends nothing off your machine.** No accounts, no API keys, no phone-home. Usage telemetry (tokens saved per call) is written only to a local file, `~/.local/state/toolsmith/usage.jsonl`, which `toolsmith audit` reads. Disable logging with `TOOLSMITH_USAGE_LOG=0`.
+**Toolsmith sends nothing off your machine.** No accounts, no API keys, no phone-home. Compression receipts are computed locally from before/after token estimates. Usage telemetry (tokens saved per call) is written only to a local file, `~/.local/state/toolsmith/usage.jsonl`, which `toolsmith audit` reads. Disable logging with `TOOLSMITH_USAGE_LOG=0`.
 
 The only network request Toolsmith ever makes is an optional once-a-day version check against the npm registry (the "update available" nudge). Turn it off with `TOOLSMITH_NO_UPDATE_CHECK=1`.
 

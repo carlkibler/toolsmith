@@ -28,6 +28,8 @@ test("fileSkeleton returns anchored declaration outline", () => {
   assert(result.entries.some((entry) => entry.text === "class Gamma {" && entry.kind === "class"))
   assert.match(result.text, new RegExp(`${result.entries[0].anchor}${ANCHOR_DELIMITER}`))
   assert.equal(result.telemetry.operation, "file_skeleton")
+  assert.equal(result.telemetry.compression.strategy, "targeted_tool_result")
+  assert(result.telemetry.compression.originalTokens >= result.telemetry.compression.compressedTokens)
 })
 
 test("getFunction returns anchored range for named JavaScript symbol", () => {

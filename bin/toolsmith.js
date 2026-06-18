@@ -45,6 +45,7 @@ Audit
   opportunities  [--days N] [--json] [--remote HOST]      Lost-opportunity report.
   adoption-snippet [--client claude|codex|gemini|all]     Print CLAUDE.md snippet.
   charm          [--lines N]                              Demo token savings on a fake file.
+  compact-output [--max-repeated N]                       Trim ANSI/progress/pager noise and collapse repeated lines from stdin.
 
 Edit primitives (for agents via MCP — prefer mcp__toolsmith__* over CLI in agent contexts)
   mcp                                              Start MCP stdio server.
@@ -57,6 +58,13 @@ Edit primitives (for agents via MCP — prefer mcp__toolsmith__* over CLI in age
   edit           <path> --edits edits.json [--dry-run] [--session ID]
   edit-many      files.json [--dry-run] [--session ID]
 `)
+}
+
+
+async function readStdin() {
+  const chunks = []
+  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk))
+  return Buffer.concat(chunks).toString("utf8")
 }
 
 try {
@@ -96,6 +104,12 @@ try {
     runAdoptionSnippet()
   } else if (command === "charm") {
     await runCharm()
+  } else if (command === "compact-output") {
+    const { compactToolOutput } = await import("../src/compact-output.js")
+    const input = await readStdin()
+    const result = compactToolOutput(input, { maxRepeated: option("--max-repeated") ? Number(option("--max-repeated")) : undefined })
+    console.log(result.text)
+    if (args.includes("--receipt")) console.error(JSON.stringify(result.receipt))
   } else if (command === "read") {
     const target = args[0]
     const result = await tools.read({
