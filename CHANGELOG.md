@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.1.53 — 2026-06-18
+
+- Add local compression receipts to Toolsmith telemetry so token reductions are visible without routing model traffic through a gateway.
+- Make MCP result delivery compact by default: anchored text is delivered once in `content`, while duplicate structured `text`, anchors, snippets, and full content are stripped and replaced with a local compression receipt.
+- Add opt-in compact MCP tool surface via `TOOLSMITH_COMPACT_TOOLS=1`, exposing one `toolsmith` router tool for clients where tool definitions crowd context.
+- Add `toolsmith compact-output` to trim local shell-output noise: ANSI/pager/progress framing is stripped and repeated lines collapse only when doing so actually shortens the output.
+
 ## 0.1.52 — 2026-06-18
 
 - Make adaptive tripwire escalation turn-cost-aware: repeated native large-file edits/writes can still escalate to `ask`, but large reads and shell inspection stay nudge-only so guidance does not burn retry turns for low-risk inspection.
