@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.1.52 — 2026-06-18
+
+- Make adaptive tripwire escalation turn-cost-aware: repeated native large-file edits/writes can still escalate to `ask`, but large reads and shell inspection stay nudge-only so guidance does not burn retry turns for low-risk inspection.
+- Log tripwire decisions (`nudge`/`ask`/`deny`) and report estimated retry-turn prompts in audit/status output, so the adoption benefit can be compared against prompt friction.
+- Fix doctor adoption hints that falsely reported Claude/Codex as "registered but ignored" because startup client names (`claude`, `codex`) did not match MCP tool-call client names (`claude-code`, `codex-mcp-client`).
+- Treat same-version registrations that point at the canonical Toolsmith checkout as healthy, while still warning when an alternate checkout is a different version. This quiets dev-machine path noise without hiding real stale installs.
+
 ## 0.1.51 — 2026-06-14
 
 Token-savings accounting was inflated and rewarded the wrong behavior. It now tells the truth.
