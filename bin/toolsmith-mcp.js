@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url"
 import path from "node:path"
 import { WorkspaceTools } from "../src/fs-tools.js"
 import { UsageLogger } from "../src/usage-log.js"
+import { estimateTokens, makeCompressionReceipt } from "../src/telemetry.js"
 
 {
   const major = Number(process.versions.node.split(".")[0])
@@ -33,22 +34,58 @@ try {
 } catch { /* never block server startup on update awareness */ }
 
 function verboseOutput() {
-  return envEnabled(process.env.TOOLSMITH_VERBOSE) || envEnabled(process.env.TOOLSMITH_DEBUG)
+  return resultMode() === "verbose"
+}
+
+function compactToolsEnabled() {
+  return envEnabled(process.env.TOOLSMITH_COMPACT_TOOLS)
+}
+
+function resultMode() {
+  if (envEnabled(process.env.TOOLSMITH_VERBOSE) || envEnabled(process.env.TOOLSMITH_DEBUG)) return "verbose"
+  const value = String(process.env.TOOLSMITH_MCP_RESULT_MODE || "compact").toLowerCase()
+  if (["compact", "summary", "verbose"].includes(value)) return value
+  return "compact"
 }
 
 function envEnabled(value) {
   return /^(1|true|yes|on|debug|verbose)$/i.test(String(value || ""))
 }
 
-function toolContent(result, summary) {
-  if (verboseOutput()) return [{ type: "text", text: result.text }]
-  const saved = result?.telemetry?.estimatedTokensAvoided
-  const text = saved > 0 ? `${summary} (saved ~${Math.round(saved)} tokens)` : summary
-  return [{ type: "text", text }]
+function mcpToolResult(result, summary, { isError = false } = {}) {
+  const mode = resultMode()
+  const text = result?.text || summary
+  if (mode === "summary") {
+    const saved = result?.telemetry?.estimatedTokensAvoided
+    const summaryText = saved > 0 ? `${summary} (saved ~${Math.round(saved)} tokens)` : summary
+    return { content: [{ type: "text", text: summaryText }], structuredContent: result, isError }
+  }
+
+  const structuredContent = mode === "compact" ? compactStructuredResult(result, { text }) : result
+  return { content: [{ type: "text", text }], structuredContent, isError }
 }
 
-function adapterResult(result) {
-  return stripLargePayloadFields(result)
+function compactStructuredResult(result, { text = "" } = {}) {
+  const compact = stripLargePayloadFields(result)
+  compact.compression = mcpCompressionReceipt({ original: result, compact, deliveredText: text })
+  if (compact.telemetry && typeof compact.telemetry === "object") {
+    compact.telemetry = { ...compact.telemetry, mcpCompression: compact.compression }
+  }
+  return compact
+}
+
+function mcpCompressionReceipt({ original, compact, deliveredText }) {
+  const legacyPayload = JSON.stringify(original || {})
+  const compactPayload = JSON.stringify({ content: [{ type: "text", text: deliveredText || "" }], structuredContent: compact || {} })
+  return makeCompressionReceipt({
+    strategy: "lossless_mcp_result_trim",
+    originalTokens: estimateTokens(legacyPayload),
+    compressedTokens: estimateTokens(compactPayload),
+  })
+}
+
+function adapterResult(result, text = "") {
+  return compactStructuredResult(result, { text })
 }
 
 function stripLargePayloadFields(value) {
@@ -56,9 +93,13 @@ function stripLargePayloadFields(value) {
   if (!value || typeof value !== "object") return value
   return Object.fromEntries(
     Object.entries(value)
-      .filter(([key]) => key !== "content" && key !== "anchors")
+      .filter(([key]) => !["content", "anchors", "anchor", "text", "snippet"].includes(key))
       .map(([key, item]) => [key, stripLargePayloadFields(item)]),
   )
+}
+
+function visibleTools() {
+  return compactToolsEnabled() ? tools.filter((tool) => tool.name === "toolsmith") : tools.filter((tool) => tool.name !== "toolsmith")
 }
 
 function readSummary(result) {
@@ -98,7 +139,7 @@ if (process.env.TOOLSMITH_USAGE_LOG === "0" && verboseOutput()) process.stderr.w
 const tools = []
 
 function registerTool(name, meta, handler) {
-  tools.push({ name, meta, handler: logged(name, handler) })
+  tools.push({ name, meta, handler: logged(name, handler), rawHandler: handler })
 }
 
 function logged(name, handler) {
@@ -127,8 +168,9 @@ async function dispatch(msg) {
       return { jsonrpc: "2.0", id, result: {} }
     case "tools/list":
       try {
-        await usageLogger.toolsList({ toolCount: tools.length })
-        return { jsonrpc: "2.0", id, result: { tools: tools.map(({ name, meta }) => ({ name, title: meta.title, description: meta.description, inputSchema: meta.inputSchema, annotations: meta.annotations })) } }
+        const listedTools = visibleTools()
+        await usageLogger.toolsList({ toolCount: listedTools.length })
+        return { jsonrpc: "2.0", id, result: { tools: listedTools.map(({ name, meta }) => ({ name, title: meta.title, description: meta.description, inputSchema: meta.inputSchema, annotations: meta.annotations })) } }
       } catch (e) {
         return { jsonrpc: "2.0", id, error: { code: -32000, message: e?.message ?? String(e) } }
       }
@@ -182,7 +224,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.read(args)
-    return { content: toolContent(result, readSummary(result)), structuredContent: result }
+    return mcpToolResult(result, readSummary(result))
   },
 )
 
@@ -208,7 +250,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.search(args)
-    return { content: toolContent(result, searchSummary(result)), structuredContent: result, isError: Boolean(result.error) }
+    return mcpToolResult(result, searchSummary(result), { isError: Boolean(result.error) })
   },
 )
 
@@ -237,7 +279,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.findAndAnchor(args)
-    return { content: toolContent(result, findSummary(result)), structuredContent: result, isError: Boolean(result.error) }
+    return mcpToolResult(result, findSummary(result), { isError: Boolean(result.error) })
   },
 )
 
@@ -260,7 +302,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.skeleton(args)
-    return { content: toolContent(result, skeletonSummary(result)), structuredContent: result }
+    return mcpToolResult(result, skeletonSummary(result))
   },
 )
 
@@ -284,7 +326,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.getFunction(args)
-    return { content: toolContent(result, functionSummary(result)), structuredContent: result, isError: false }
+    return mcpToolResult(result, functionSummary(result), { isError: false })
   },
 )
 
@@ -316,7 +358,7 @@ registerTool(
       : result.notFound
         ? `No match in ${args.path}: ${result.errors.join("; ")} — try get_function to inspect the current source.`
         : `Symbol replace failed for ${args.path}:\n${result.errors.join("\n")}`
-    return { content: [{ type: "text", text: summary }], structuredContent: adapterResult(result), isError: !result.ok && !result.notFound }
+    return { content: [{ type: "text", text: summary }], structuredContent: adapterResult(result, summary), isError: !result.ok && !result.notFound }
   },
 )
 
@@ -345,7 +387,7 @@ registerTool(
     const summary = result.ok
       ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}${result.changed ? "" : " (no content change)"}.${warningLines.length ? `\n${warningLines.join("\n")}` : ""}`
       : `Anchored edit failed for ${result.path}:\n${result.errors.join("\n")}`
-    return { content: [{ type: "text", text: summary }], structuredContent: adapterResult(result), isError: !result.ok }
+    return { content: [{ type: "text", text: summary }], structuredContent: adapterResult(result, summary), isError: !result.ok }
   },
 )
 
@@ -387,7 +429,7 @@ registerTool(
     const summary = result.ok
       ? `${result.dryRun ? "Would apply" : "Applied"} ${edited} anchored edit(s) across ${result.files.length} file(s).${warningLines.length ? `\n${warningLines.join("\n")}` : ""}`
       : `Multi-file anchored edit failed:\n${result.errors.join("\n")}`
-    return { content: [{ type: "text", text: summary }], structuredContent: adapterResult(result), isError: !result.ok }
+    return { content: [{ type: "text", text: summary }], structuredContent: adapterResult(result, summary), isError: !result.ok }
   },
 )
 
@@ -408,6 +450,46 @@ registerTool(
       content: [{ type: "text", text: `toolsmith MCP ready in ${workspace.cwd} [workspace: ${workspace.workspaceKey}]\n${storeText}` }],
       structuredContent: { cwd: workspace.cwd, workspaceKey: workspace.workspaceKey, version, files },
     }
+  },
+)
+
+
+const ROUTER_ACTIONS = {
+  read: "anchored_read",
+  search: "anchored_search",
+  find: "find_and_anchor",
+  skeleton: "file_skeleton",
+  function: "get_function",
+  get_function: "get_function",
+  symbol_replace: "symbol_replace",
+  edit: "anchored_edit",
+  edit_many: "anchored_edit_many",
+  status: "anchored_edit_status",
+}
+
+registerTool(
+  "toolsmith",
+  {
+    title: "Toolsmith Router",
+    description: "Compact tool surface for Toolsmith. Set TOOLSMITH_COMPACT_TOOLS=1 to expose only this router. Pass tool as anchored_read, anchored_search, find_and_anchor, file_skeleton, get_function, symbol_replace, anchored_edit, anchored_edit_many, or anchored_edit_status, with arguments containing that tool's normal input.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        tool: { type: "string", description: "Target Toolsmith tool name, e.g. file_skeleton or anchored_edit." },
+        action: { type: "string", description: "Short alias: read, search, find, skeleton, get_function, symbol_replace, edit, edit_many, or status." },
+        arguments: { type: "object", description: "Arguments for the target tool." },
+        args: { type: "object", description: "Alias for arguments." },
+      },
+    },
+  },
+  async (args) => {
+    const requested = args.tool || args.name || ROUTER_ACTIONS[String(args.action || "").toLowerCase()]
+    const targetName = ROUTER_ACTIONS[String(requested || "").toLowerCase()] || requested
+    if (!targetName || targetName === "toolsmith") throw new Error("toolsmith router requires a target tool or action")
+    const target = tools.find((tool) => tool.name === targetName && tool.name !== "toolsmith")
+    if (!target) throw new Error(`unknown Toolsmith target: ${targetName}`)
+    const toolArgs = args.arguments || args.args || Object.fromEntries(Object.entries(args).filter(([key]) => !["tool", "name", "action", "arguments", "args"].includes(key)))
+    return target.rawHandler(toolArgs || {})
   },
 )
 
