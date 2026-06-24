@@ -313,6 +313,76 @@ test("a fixed mode opts out of escalation (stays allow across many fires)", asyn
   }
 })
 
+function msgOf(stdout) {
+  return JSON.parse(stdout).systemMessage || ""
+}
+
+test("first native large-file edit of a session gets the distinct on-ramp message; later edits go quiet", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-onramp-"))
+  const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-onramp-state-"))
+  try {
+    const file = await makeLargeFile(dir)
+    const payload = JSON.stringify({ tool_name: "Edit", tool_input: { file_path: file }, cwd: dir, session_id: "onramp-1" })
+    const env = { TOOLSMITH_STATE_DIR: state, TOOLSMITH_NO_UPDATE_CHECK: "1" }
+    const first = runTripwire(payload, ["--mode", "allow"], env)
+    assert.match(msgOf(first.stdout), /on-ramp/i)
+    assert.match(msgOf(first.stdout), /first large native edit/i)
+    assert.equal(decisionOf(first.stdout), "allow") // on-ramp is a pure nudge — no decision change
+    const second = runTripwire(payload, ["--mode", "allow"], env)
+    assert.doesNotMatch(msgOf(second.stdout), /on-ramp/i) // quiet after the first edit
+    assert.match(msgOf(second.stdout), /anchored_edit/)   // normal nudge still present
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+    await fs.rm(state, { recursive: true, force: true })
+  }
+})
+
+test("on-ramp re-arms after the agent uses Toolsmith (PostToolUse reset-session)", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-onramp-reset-"))
+  const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-onramp-reset-state-"))
+  try {
+    const file = await makeLargeFile(dir)
+    const env = { TOOLSMITH_STATE_DIR: state, TOOLSMITH_NO_UPDATE_CHECK: "1" }
+    const payload = JSON.stringify({ tool_name: "Edit", tool_input: { file_path: file }, cwd: dir, session_id: "onramp-reset" })
+    assert.match(msgOf(runTripwire(payload, ["--mode", "allow"], env).stdout), /on-ramp/i)
+    assert.doesNotMatch(msgOf(runTripwire(payload, ["--mode", "allow"], env).stdout), /on-ramp/i)
+    const resetPayload = JSON.stringify({ tool_name: "mcp__toolsmith__anchored_read", session_id: "onramp-reset" })
+    spawnSync(process.execPath, [CLI, "tripwire", "reset-session"], { input: resetPayload, encoding: "utf8", env: { ...process.env, ...env } })
+    assert.match(msgOf(runTripwire(payload, ["--mode", "allow"], env).stdout), /on-ramp/i) // re-armed, fires once more
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+    await fs.rm(state, { recursive: true, force: true })
+  }
+})
+
+test("a native large-file READ never triggers the edit on-ramp", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-onramp-read-"))
+  const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-onramp-read-state-"))
+  try {
+    const file = await makeLargeFile(dir)
+    const payload = JSON.stringify({ tool_name: "Read", tool_input: { file_path: file }, cwd: dir, session_id: "onramp-read" })
+    assert.doesNotMatch(msgOf(runTripwire(payload, ["--mode", "allow"], { TOOLSMITH_STATE_DIR: state, TOOLSMITH_NO_UPDATE_CHECK: "1" }).stdout), /on-ramp/i)
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+    await fs.rm(state, { recursive: true, force: true })
+  }
+})
+
+test("on-ramp kill switch TOOLSMITH_TRIPWIRE_ONRAMP=0 disables it (falls back to the normal nudge)", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-onramp-off-"))
+  const state = await fs.mkdtemp(path.join(os.tmpdir(), "toolsmith-onramp-off-state-"))
+  try {
+    const file = await makeLargeFile(dir)
+    const payload = JSON.stringify({ tool_name: "Edit", tool_input: { file_path: file }, cwd: dir, session_id: "onramp-off" })
+    const out = runTripwire(payload, ["--mode", "allow"], { TOOLSMITH_STATE_DIR: state, TOOLSMITH_NO_UPDATE_CHECK: "1", TOOLSMITH_TRIPWIRE_ONRAMP: "0" }).stdout
+    assert.doesNotMatch(msgOf(out), /on-ramp/i)
+    assert.match(msgOf(out), /anchored_edit/) // normal nudge still fires
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+    await fs.rm(state, { recursive: true, force: true })
+  }
+})
+
 test("prime command prints the re-priming rule (for the SessionStart hook)", () => {
   const r = spawnSync(process.execPath, [CLI, "prime"], { encoding: "utf8", env: { ...process.env, TOOLSMITH_NO_UPDATE_CHECK: "1" } })
   assert.equal(r.status, 0)

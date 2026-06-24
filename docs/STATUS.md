@@ -1,6 +1,6 @@
 # Project Status
 
-Updated: 2026-06-09 (stable Node MCP registration paths)
+Updated: 2026-06-24 (first-edit on-ramp nudge)
 
 ## What exists now
 
@@ -32,7 +32,7 @@ Implemented pieces:
   - `update` — installs the latest GitHub release package and refreshes MCP registrations plus the opt-in Codex footer by default (`--from PATH` opts into local checkout installs; `--no-setup` skips refresh; `--no-codex-footer` skips only the footer)
   - `scan-agent-logs`, `opportunities` (with token savings estimates), and `adoption-snippet` for adoption/lost-opportunity analysis
   - `audit` — shows estimated tokens saved by toolsmith AND estimated missed savings from native ops side-by-side
-  - `tripwire` — optional native-use advisory hook for Claude Code; logs fires, emits the current Claude `hookSpecificOutput` JSON envelope, and prints Codex activation guidance
+  - `tripwire` — optional native-use advisory hook for Claude Code; logs fires, emits the current Claude `hookSpecificOutput` JSON envelope, prints Codex activation guidance, and gives the first native large-file edit per session a distinct one-time "on-ramp" nudge (kill switch `TOOLSMITH_TRIPWIRE_ONRAMP=0`)
   - `mcp`
 - MCP server in `bin/toolsmith-mcp.js`
   - `anchored_read`
@@ -132,6 +132,15 @@ Representative local and remote development hosts were scanned after the adoptio
 - Claude/Codex guidance now treats native bounded reads as acceptable inspection: explicit small ranges/limits up to ~300 lines do not trigger the tripwire. Broad reads, whole-file reads, native edits/writes, `cat`/`nl`, and broad `sed -n` still nudge toward Toolsmith.
 - Tripwire messages no longer report threshold artifacts like `201 lines`; they say `>200 lines` when only the threshold is known. Oversized files above Toolsmith's 512KB read/edit limit get native-bounded-read guidance instead of a bad Toolsmith redirect.
 - Audit/session scanning uses the same ~300-line cutoff for bounded native reads and shell `sed` ranges, so the stats match the live hook's noise budget.
+
+## First-edit on-ramp nudge — 2026-06-24
+
+Multi-host forensics (gauss 7d) found native large-file edits ignore the per-edit tripwire almost completely in code-build sessions: one cto-agent session named Toolsmith ~200× (all tripwire nudges) and called it 0×. Sessions are bimodal — a session is *either* a Toolsmith session *or* a native-only session (0 dropped-anchor cases, 0 sessions mixing a Toolsmith read with a native large edit). The editing gait locks at the first file open, so identical repeated nudges go banner-blind.
+
+- The FIRST native large-file Edit/MultiEdit/Write of a session now emits a distinct, gait-naming "on-ramp" message (⚓), then the tripwire reverts to its normal nudge. One different message at the leverage point, not 200 identical ones.
+- Pure message change — it never alters the permission decision (stays a nudge even where the normal nudge would). Reuses the per-session `tripwire-sessions` state; brand-new file writes (no existing line count) and Toolsmith-unreachable files are skipped.
+- Re-arms on `reset-session` (when the agent uses any Toolsmith tool), so drifting back to native editing after using Toolsmith re-fires the on-ramp once. Kill switch: `TOOLSMITH_TRIPWIRE_ONRAMP=0`.
+- Session start/reset priming was already covered by the `SessionStart` (`startup|compact|clear`) prime hook; this adds the missing first-edit trigger. No new hook or install surface, so no self-containment change.
 
 ## Known behavior / caveats
 
