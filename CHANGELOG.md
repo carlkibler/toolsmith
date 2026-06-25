@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.1.54 — 2026-06-24
+
+- Give the first native large-file edit of each session a distinct, one-time "on-ramp" nudge instead of repeating the same edit nudge that heavy build sessions tune out. Multi-host log forensics found native large-file edits were ignoring the per-edit nudge almost entirely — the editing approach locks in at the first edit, so a different first message is where the leverage is. The on-ramp is a pure nudge (it never changes the permission decision), fires once per session, re-arms whenever you use any Toolsmith tool, and skips brand-new file writes and files above the read/edit size limit. Disable with `TOOLSMITH_TRIPWIRE_ONRAMP=0`.
+
 ## 0.1.53 — 2026-06-18
 
 - Add local compression receipts to Toolsmith telemetry so token reductions are visible without routing model traffic through a gateway.
