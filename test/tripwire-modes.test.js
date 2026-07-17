@@ -18,7 +18,7 @@ function runTripwire(payload, extraArgs = [], env = {}) {
   return spawnSync(process.execPath, [CLI, "tripwire", "run", "--format", "claude", ...extraArgs], {
     input: payload,
     encoding: "utf8",
-    env: { ...process.env, TOOLSMITH_TRIPWIRE_LOG: "0", ...env },
+    env: { ...process.env, TOOLSMITH_TRIPWIRE_LOG: "0", TOOLSMITH_TRIPWIRE_VOUCH: "0", ...env },
   })
 }
 
@@ -169,7 +169,7 @@ test("opt-in adaptive escalates allow → ask and never auto-denies", async () =
       const r = spawnSync(process.execPath, [CLI, "tripwire", "run", "--format", "claude", "--mode", "adaptive"], {
         input: payload,
         encoding: "utf8",
-        env: { ...process.env, TOOLSMITH_STATE_DIR: state, TOOLSMITH_TRIPWIRE_LOG: "0", TOOLSMITH_NO_UPDATE_CHECK: "1", TOOLSMITH_TRIPWIRE_MODE: "" },
+        env: { ...process.env, TOOLSMITH_STATE_DIR: state, TOOLSMITH_TRIPWIRE_LOG: "0", TOOLSMITH_NO_UPDATE_CHECK: "1", TOOLSMITH_TRIPWIRE_MODE: "", TOOLSMITH_TRIPWIRE_VOUCH: "0" },
       })
       decisions.push(decisionOf(r.stdout))
     }
@@ -209,7 +209,7 @@ test("opt-in adaptive stays nudge-only for READ to avoid retry-turn tax", async 
     for (let i = 0; i < 10; i += 1) {
       const decision = decisionOf(spawnSync(process.execPath, [CLI, "tripwire", "run", "--format", "claude", "--mode", "adaptive"], {
         input: payload, encoding: "utf8",
-        env: { ...process.env, TOOLSMITH_STATE_DIR: state, TOOLSMITH_TRIPWIRE_LOG: "0", TOOLSMITH_NO_UPDATE_CHECK: "1" },
+        env: { ...process.env, TOOLSMITH_STATE_DIR: state, TOOLSMITH_TRIPWIRE_LOG: "0", TOOLSMITH_NO_UPDATE_CHECK: "1", TOOLSMITH_TRIPWIRE_VOUCH: "0" },
       }).stdout)
       assert.equal(decision, "allow", `read should stay a nudge (fire ${i + 1})`)
     }
@@ -229,7 +229,7 @@ test("adaptive never blocks a Write to a not-yet-existing file (only Write can c
     for (let i = 0; i < 10; i += 1) {
       assert.equal(decisionOf(spawnSync(process.execPath, [CLI, "tripwire", "run", "--format", "claude"], {
         input: payload, encoding: "utf8",
-        env: { ...process.env, TOOLSMITH_STATE_DIR: state, TOOLSMITH_TRIPWIRE_LOG: "0", TOOLSMITH_NO_UPDATE_CHECK: "1" },
+        env: { ...process.env, TOOLSMITH_STATE_DIR: state, TOOLSMITH_TRIPWIRE_LOG: "0", TOOLSMITH_NO_UPDATE_CHECK: "1", TOOLSMITH_TRIPWIRE_VOUCH: "0" },
       }).stdout), "allow")
     }
   } finally {

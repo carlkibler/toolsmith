@@ -29,8 +29,9 @@ Install / health
                  Register MCP with Claude Code, Codex, and Gemini. Injects preference hints and installs the nudge-only tripwire (--no-tripwire to skip; --tripwire-mode adaptive to ask on repeated edit bypasses).
   adopt          --inject | --remove
                  Add or remove toolsmith preference block from CLAUDE.md / AGENTS.md.
-  doctor|doc     [--fix [--yes]] [--smoke] [--online] [--live-agent]
+  doctor|doc     [--fix [--yes]] [--smoke] [--wire] [--online] [--live-agent]
                  Check registration, drift, adoption, and log health. --fix self-repairs.
+                 --wire proves end-to-end content delivery (non-zero exit on failure).
   update         [--github] [--from PATH] [--no-setup] [--no-codex-footer] [--check]
                  Install latest npm release and refresh clients; --github uses GitHub releases, --from uses local path.
   pi             [--with-builtins] [pi args...]
