@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.1.55 — 2026-07-17
+
+- Fix anchored tools returning telemetry with no file body under compact mode (the default). Since 0.1.53, compact mode stripped `text` and anchors out of `structuredContent`, assuming the model always reads `content[]`. Newer MCP clients (Claude Code ≥ 2.1.x) render `structuredContent` instead, so the model saw only telemetry and fell back to native reads — reporting "Toolsmith is returning telemetry without content." `structuredContent.text` now mirrors the body delivered in `content[0].text`, satisfying the MCP requirement that the two be functionally equivalent. Redundant nested arrays (`entries[].text`, `matches[].snippet`, per-line `anchors`) stay stripped, so real token savings are preserved.
+
 ## 0.1.54 — 2026-06-24
 
 - Give the first native large-file edit of each session a distinct, one-time "on-ramp" nudge instead of repeating the same edit nudge that heavy build sessions tune out. Multi-host log forensics found native large-file edits were ignoring the per-edit nudge almost entirely — the editing approach locks in at the first edit, so a different first message is where the leverage is. The on-ramp is a pure nudge (it never changes the permission decision), fires once per session, re-arms whenever you use any Toolsmith tool, and skips brand-new file writes and files above the read/edit size limit. Disable with `TOOLSMITH_TRIPWIRE_ONRAMP=0`.

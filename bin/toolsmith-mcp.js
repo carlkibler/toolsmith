@@ -67,6 +67,11 @@ function mcpToolResult(result, summary, { isError = false } = {}) {
 
 function compactStructuredResult(result, { text = "" } = {}) {
   const compact = stripLargePayloadFields(result)
+  // Mirror the delivered body into structuredContent.text. Clients that render
+  // structuredContent instead of content[] (e.g. Claude Code >=2.1.x) must still
+  // see the anchored body; MCP requires structuredContent be functionally
+  // equivalent to content. Nested duplicate arrays stay stripped for token savings.
+  compact.text = text
   compact.compression = mcpCompressionReceipt({ original: result, compact, deliveredText: text })
   if (compact.telemetry && typeof compact.telemetry === "object") {
     compact.telemetry = { ...compact.telemetry, mcpCompression: compact.compression }
