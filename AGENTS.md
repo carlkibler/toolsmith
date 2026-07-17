@@ -51,7 +51,7 @@ Files over 512KB are rejected. Use `startLine`/`endLine` for partial reads, `fil
 
 ## Project contributor notes
 
-Canonical project instructions: `CLAUDE.md`. Issue tracking: `bd` (beads) — see `CLAUDE.md` for workflow.
+Canonical project instructions: `CLAUDE.md`.
 
 <!-- toolsmith:begin -->
 <!-- Toolsmith — https://github.com/carlkibler/toolsmith — https://www.npmjs.com/package/@carlkibler/toolsmith -->

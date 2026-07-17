@@ -15,8 +15,8 @@ user's global Claude config.
 
 They previously sat in `templates/.claude/hooks/`. That path *looked* like "files to
 copy into `~/.claude`", but nothing installed them — so a global `settings.json` that
-referenced them errored on every machine that never got a manual copy
-(see bead `toolsmith-z7e`). The lesson is the doctrine in the repo `CLAUDE.md`:
+referenced them errored on every machine that never got a manual copy.
+The lesson is the doctrine in the repo `CLAUDE.md`:
 
 > Toolsmith must provide, update, and manage any file it expects a harness to access.
 > It must never leave a dangling reference to a file it does not install.

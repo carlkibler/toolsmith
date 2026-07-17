@@ -55,55 +55,26 @@ Concretely, for any agent working on Toolsmith:
 - **No install-by-manual-copy.** If a file only reaches a machine because someone `scp`'d it once, it is not installed. Provisioning must be reproducible from `toolsmith setup`/`update` alone.
 - **Do not scatter files into shared/global harness locations you don't manage** (e.g. global `~/.claude/hooks/`). Either install + own them end-to-end, or keep them inside the Toolsmith repo/package.
 - **Stamp provenance on every installed artifact.** Anything Toolsmith writes into a user/project area must declare it belongs to Toolsmith and link to the repo + npm package, using `lib/provenance.js`. Shell scripts get the `#` header (`shellProvenanceHeader`); injected shell-command hooks, TOML entries, and Markdown priming blocks get the inline `provenanceTag()`. Pure-JSON entries (MCP server objects in `settings.json`) can't hold comments — there the `toolsmith` server key is the identifier. A user must always be able to look at an installed file and find out what put it there.
-- **Dev-only artifacts stay clearly dev-only.** Helper hooks for developing Toolsmith live in `dev/claude-hooks/` (not published, not auto-installed) — see that README. Never give them a name or path that implies "install me" (the old `templates/.claude/hooks/` did, and it errored on every machine that never got the manual copy — bead `toolsmith-z7e`).
+- **Dev-only artifacts stay clearly dev-only.** Helper hooks for developing Toolsmith live in `dev/claude-hooks/` (not published, not auto-installed) — see that README. Never give them a name or path that implies "install me" (the old `templates/.claude/hooks/` path did, and it errored on every machine that never got the manual copy).
 - **Verify on every supported target.** A fix isn't done until you've confirmed the file exists and runs on each machine/harness Toolsmith claims to support, not just the one you're typing on.
 
 The test: *"If a fresh machine runs only `toolsmith setup`, will every file Toolsmith references exist and work?"* If the answer is "no" or "only after a manual step", the change is incomplete.
 
 
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
-
-### Rules
-
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
-
 ## Session Completion
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+**When ending a work session**, complete these steps. Work is NOT done until `git push` succeeds.
 
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
+1. **Note remaining work** — record anything that needs follow-up for the next session
+2. **Run quality gates** (if code changed) — tests, linters, builds
+3. **Push to remote** — this is mandatory:
    ```bash
    git pull --rebase
-   bd dolt push
    git push
    git status  # MUST show "up to date with origin"
    ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+4. **Clean up** — clear stashes, prune remote branches
+5. **Verify** — all changes committed AND pushed
+6. **Hand off** — provide context for the next session
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
+**Never** stop before pushing — that strands work locally. If push fails, resolve and retry until it succeeds.
