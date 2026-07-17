@@ -1,6 +1,6 @@
 # Project Status
 
-Updated: 2026-06-24 (first-edit on-ramp nudge)
+Updated: 2026-07-17 (structuredContent delivery fix, wire canary, tripwire self-vouching)
 
 ## What exists now
 
@@ -18,7 +18,7 @@ Implemented pieces:
   - compact structural reads with `file_skeleton` and `get_function`
   - safe symbol-scoped replacements with `symbol_replace`
   - lightweight telemetry for bytes/tokens avoided, request/response size, anchor count, edit deltas, and local compression receipts; read-family savings are session-deduped via a per-(workspace,session,file) ledger in `AnchorStore` — the whole-file baseline is credited once and each read spends its actual response tokens, so `estimatedTokensAvoided` is a signed per-call increment whose cumulative can never exceed reading the file once (re-reading a file in N chunks no longer claims ~N× the file); `find_and_anchor` credits matched-file bytes (its realistic grep alternative), not the scanned corpus, so a 0-match scan reports 0 saved
-  - compact MCP result delivery by default: anchored text appears once in `content`, duplicate `structuredContent.text`/anchors/snippets are stripped, and an `mcpCompression` receipt records the local trimming estimate
+  - compact MCP result delivery by default: the anchored body is delivered in `content[0].text` AND mirrored in `structuredContent.text` (clients like Claude Code ≥2.1.x render `structuredContent`, and MCP requires the two channels be functionally equivalent — stripping the mirror was the 0.1.53 regression); redundant nested arrays (per-line anchors, `entries[].text`, `matches[].snippet`) are stripped, and an `mcpCompression` receipt records the local trimming estimate
   - opt-in compact MCP tool surface via `TOOLSMITH_COMPACT_TOOLS=1`, exposing one router tool named `toolsmith` while keeping the full surface as the default
   - `toolsmith compact-output` for local shell-output trimming: ANSI/pager/progress noise is stripped and repeated lines collapse before output reaches the model
   - atomic single-file batched edits
@@ -32,7 +32,8 @@ Implemented pieces:
   - `update` — installs the latest GitHub release package and refreshes MCP registrations plus the opt-in Codex footer by default (`--from PATH` opts into local checkout installs; `--no-setup` skips refresh; `--no-codex-footer` skips only the footer)
   - `scan-agent-logs`, `opportunities` (with token savings estimates), and `adoption-snippet` for adoption/lost-opportunity analysis
   - `audit` — shows estimated tokens saved by toolsmith AND estimated missed savings from native ops side-by-side
-  - `tripwire` — optional native-use advisory hook for Claude Code; logs fires, emits the current Claude `hookSpecificOutput` JSON envelope, prints Codex activation guidance, and gives the first native large-file edit per session a distinct one-time "on-ramp" nudge (kill switch `TOOLSMITH_TRIPWIRE_ONRAMP=0`)
+  - `tripwire` — optional native-use advisory hook for Claude Code; logs fires, emits the current Claude `hookSpecificOutput` JSON envelope, prints Codex activation guidance, and gives the first native large-file edit per session a distinct one-time "on-ramp" nudge (kill switch `TOOLSMITH_TRIPWIRE_ONRAMP=0`); before its first nudge it runs the wire canary (cached per install version, pass=24h/fail=1h) and goes silent with a `silenced-unverified` log row if the MCP server can't prove it delivers content (kill switch `TOOLSMITH_TRIPWIRE_VOUCH=0`) — a recommender must not push agents toward a broken tool, as the 0.1.53–0.1.55 structuredContent regression did for 29 days
+  - `doctor --wire` — end-to-end wire canary: spawns the MCP server in a throwaway workspace and asserts the anchored body arrives on both `content[0].text` and `structuredContent.text` (functional equivalence per MCP spec); non-zero exit on failure for cron/reminder alerting. Server-side telemetry alone cannot detect a delivery regression — it reported 39–60% token reduction throughout the 0.1.53 outage while Claude clients received none
   - `mcp`
 - MCP server in `bin/toolsmith-mcp.js`
   - `anchored_read`
