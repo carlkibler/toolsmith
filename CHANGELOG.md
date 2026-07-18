@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.1.56 — 2026-07-17
+
+- Add `toolsmith doctor --wire`: an end-to-end wire canary that spawns the MCP server in a throwaway workspace, reads a probe file, and asserts the anchored body arrives on BOTH delivery channels — `content[0].text` and `structuredContent.text`. Exits non-zero on failure so a cron or reminder can alert. This is the check that would have caught the 0.1.53 structuredContent regression on day 1 instead of day 29: server-side telemetry kept reporting savings while Claude clients received none.
+- The tripwire now only vouches for what it has verified: before its first nudge, it runs the wire canary (cached per install version — a pass holds a day, a failure retries within the hour) and goes silent if Toolsmith can't prove it delivers content. During the 0.1.53–0.1.55 regression window the tripwire nudged Claude toward a broken tool, costing a discovery round trip per fire and teaching the model distrust; this permanently retires that failure class. Opt out with `TOOLSMITH_TRIPWIRE_VOUCH=0`. Silenced fires are logged as `silenced-unverified` so audits surface the outage instead of it reading as adoption failure.
+
 ## 0.1.55 — 2026-07-17
 
 - Remove the beads issue tracker from the project: drop the `.beads/` store, the beads/dolt gitignore rules, the `CLAUDE.md` beads-integration block, and the `AGENTS.md` issue-tracking pointer. Repo hygiene only — no change to the published tools.

@@ -51,7 +51,7 @@ test("tripwire run emits Claude hook JSON and logs fired nudges", async () => {
       input: payload,
       encoding: "utf8",
       // Fresh state dir → adaptive's first fire is a gentle "allow" (deterministic).
-      env: { ...process.env, TOOLSMITH_TRIPWIRE_LOG: logPath, TOOLSMITH_STATE_DIR: dir },
+      env: { ...process.env, TOOLSMITH_TRIPWIRE_LOG: logPath, TOOLSMITH_STATE_DIR: dir, TOOLSMITH_TRIPWIRE_VOUCH: "0" },
     })
     assert.equal(result.status, 0)
     const out = JSON.parse(result.stdout)
