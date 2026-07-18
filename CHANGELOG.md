@@ -4,6 +4,7 @@
 
 ## 0.1.55 — 2026-07-17
 
+- Remove the beads issue tracker from the project: drop the `.beads/` store, the beads/dolt gitignore rules, the `CLAUDE.md` beads-integration block, and the `AGENTS.md` issue-tracking pointer. Repo hygiene only — no change to the published tools.
 - Fix anchored tools returning telemetry with no file body under compact mode (the default). Since 0.1.53, compact mode stripped `text` and anchors out of `structuredContent`, assuming the model always reads `content[]`. Newer MCP clients (Claude Code ≥ 2.1.x) render `structuredContent` instead, so the model saw only telemetry and fell back to native reads — reporting "Toolsmith is returning telemetry without content." `structuredContent.text` now mirrors the body delivered in `content[0].text`, satisfying the MCP requirement that the two be functionally equivalent. Redundant nested arrays (`entries[].text`, `matches[].snippet`, per-line `anchors`) stay stripped, so real token savings are preserved.
 
 ## 0.1.54 — 2026-06-24

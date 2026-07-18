@@ -118,7 +118,7 @@ Artifact logs from the latest validation runs are intentionally kept outside the
 Representative local and remote development hosts were scanned after the adoption/priming changes. Toolsmith calls were present on both hosts, and the remaining gap was native-tool muscle memory under speed pressure rather than installation failure.
 
 - Product implication shipped: Toolsmith now has an optional `tripwire` advisory path. `toolsmith tripwire install --client claude` wires a Claude PreToolUse hook for native Read/Edit/Write/MultiEdit/Bash on likely-large files, logs fires to `~/.local/state/toolsmith/tripwire.jsonl`, and `toolsmith audit` reports tripwire fire counts. Codex remains MCP-first, with `toolsmith tripwire snippet --client codex` for lazy `tool_search` activation guidance; setup/update also installs a conservative opt-in Codex Stop footer that exits before stdin/Node work unless `TOOLSMITH_CODEX_FOOTER=1`, `TOOLSMITH_VERBOSE=1`, or `TOOLSMITH_DEBUG=1` is set.
-- Follow-up bead: `toolsmith-rvf` tracks this tripwire work and can be closed after live multi-host installation plus a later rescan confirms reduced native misses.
+- Follow-up: this tripwire work can be revisited after live multi-host installation plus a later rescan confirms reduced native misses.
 
 ## Local client expansion — 2026-05-07
 
