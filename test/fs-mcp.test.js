@@ -198,7 +198,7 @@ test("MCP server lists and calls anchored tools", async () => {
     await fs.writeFile(path.join(cwd, "code.js"), "function demo() {\n  return 1\n}\n", "utf8")
     const skeleton = await client.callTool("file_skeleton", { path: "code.js", sessionId: "mcp" })
     assert.match(skeleton.content[0].text, /§function demo/)
-    assert.equal(skeleton.structuredContent.text, undefined)
+    assert.equal(skeleton.structuredContent.text, skeleton.content[0].text)
     assert.equal(skeleton.structuredContent.entries[0].text, undefined)
     assert.equal(skeleton.structuredContent.entries[0].anchor, undefined)
     assert.equal(skeleton.structuredContent.compression.strategy, "lossless_mcp_result_trim")
@@ -206,7 +206,7 @@ test("MCP server lists and calls anchored tools", async () => {
     const fn = await client.callTool("get_function", { path: "code.js", name: "demo", sessionId: "mcp" })
     assert.equal(fn.isError, false)
     assert.match(fn.content[0].text, /§  return 1/)
-    assert.equal(fn.structuredContent.text, undefined)
+    assert.equal(fn.structuredContent.text, fn.content[0].text)
 
     const sym = await client.callTool("symbol_replace", { path: "code.js", name: "demo", search: "return 1", replacement: "return 2", sessionId: "mcp" })
     assert.equal(sym.isError, false)
@@ -217,13 +217,13 @@ test("MCP server lists and calls anchored tools", async () => {
     assert.match(found.content[0].text, /\[Find: return 2\]/)
     assert.match(found.content[0].text, /code\.js/)
     assert.match(found.content[0].text, /§  return 2/)
-    assert.equal(found.structuredContent.text, undefined)
+    assert.equal(found.structuredContent.text, found.content[0].text)
     assert.equal(found.structuredContent.matches[0].text, undefined)
     assert.equal(found.structuredContent.matches[0].snippet, undefined)
 
     const search = await client.callTool("anchored_search", { path: "demo.txt", query: "green", sessionId: "mcp", contextLines: 0 })
     assert.match(search.content[0].text, /§green/)
-    assert.equal(search.structuredContent.text, undefined)
+    assert.equal(search.structuredContent.text, search.content[0].text)
 
     const badSearch = await client.callTool("anchored_search", { path: "demo.txt", query: "(x+)+$", regex: true, sessionId: "mcp" })
     assert.equal(badSearch.isError, true)
@@ -232,7 +232,7 @@ test("MCP server lists and calls anchored tools", async () => {
 
     const read = await client.callTool("anchored_read", { path: "demo.txt", sessionId: "mcp" })
     assert.match(read.content[0].text, /§green/)
-    assert.equal(read.structuredContent.text, undefined)
+    assert.equal(read.structuredContent.text, read.content[0].text)
     assert.equal(read.structuredContent.anchors, undefined)
     const readText = read.content[0].text
     assert.match(readText, /§green/)
@@ -270,7 +270,7 @@ test("MCP compact tool surface exposes only the router and routes calls", async 
     assert.deepEqual(tools.map((tool) => tool.name), ["toolsmith"])
     const result = await client.callTool("toolsmith", { action: "skeleton", arguments: { path: "code.js", sessionId: "router" } })
     assert.match(result.content[0].text, /§function demo/)
-    assert.equal(result.structuredContent.text, undefined)
+    assert.equal(result.structuredContent.text, result.content[0].text)
   } finally {
     await client.close()
   }
