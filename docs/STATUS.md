@@ -12,7 +12,7 @@ Implemented pieces:
   - line hashing and opaque `Anchor§line` references
   - anchored reads with file hash headers
   - exact anchor + line-content validation before mutation
-  - retry-friendly validation errors that show the exact full `Anchor§line` reference
+  - retry-friendly validation errors that show the exact full `Anchor§line` reference; output-shaping knobs (`contextLines`, `maxMatches`, `maxLines`, `maxFiles`, `maxMatchesPerFile`) clamp to the supported range rather than erroring, so an over-range preference never costs a round trip
   - compact anchored single-file search
   - repo/file search with `find_and_anchor` for anchored snippets across candidate files; directory searches rank candidates by zero-dep BM25 relevance (most relevant first, so the match budget lands on the best files) and honor a `.toolsmithignore` file (gitignore syntax, `!` force-include) at the search root
   - compact structural reads with `file_skeleton` and `get_function`; `file_skeleton` accepts text files up to 2 MiB while mutation tools retain the 512 KiB ceiling

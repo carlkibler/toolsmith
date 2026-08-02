@@ -163,7 +163,29 @@ test("WorkspaceTools search and findAndAnchor accept up to 50 context lines", as
 
   assert.equal(search.matches[0].endLine - search.matches[0].startLine + 1, 101)
   assert.equal(find.matches[0].endLine - find.matches[0].startLine + 1, 101)
-  await assert.rejects(() => tools.search({ path: "context.txt", query: "needle", contextLines: 51 }), /integer 0\.\.50/)
+})
+
+test("WorkspaceTools clamps over-range shaping params instead of failing the call", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "context.txt"), `${"before\n".repeat(60)}needle\n${"after\n".repeat(60)}`, "utf8")
+  const tools = new WorkspaceTools({ cwd })
+
+  const search = await tools.search({ path: "context.txt", query: "needle", contextLines: 55 })
+  const find = await tools.findAndAnchor({ path: "context.txt", query: "needle", contextLines: 200, maxMatches: 5000 })
+
+  assert.equal(search.error, undefined)
+  assert.equal(search.contextLines, 50)
+  assert.equal(search.matches[0].endLine - search.matches[0].startLine + 1, 101)
+  assert.equal(find.matches[0].endLine - find.matches[0].startLine + 1, 101)
+})
+
+test("WorkspaceTools still rejects non-integer shaping params", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "context.txt"), "needle\n", "utf8")
+  const tools = new WorkspaceTools({ cwd })
+
+  await assert.rejects(() => tools.search({ path: "context.txt", query: "needle", contextLines: "lots" }), /integer 0\.\.50/)
+  await assert.rejects(() => tools.search({ path: "context.txt", query: "needle", contextLines: 2.5 }), /integer 0\.\.50/)
 })
 
 test("CLI read emits anchored content", async () => {
