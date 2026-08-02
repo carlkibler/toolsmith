@@ -46,32 +46,32 @@ export class WorkspaceTools {
 
 
   async search({ path: inputPath, sessionId = "default", query, regex = false, caseSensitive = false, contextLines = 1, maxMatches = 20 }) {
-    contextLines = boundedInt(contextLines, "contextLines", 1, 0, 50)
-    maxMatches = boundedInt(maxMatches, "maxMatches", 20, 1, 200)
+    contextLines = clampedInt(contextLines, "contextLines", 1, 0, 50)
+    maxMatches = clampedInt(maxMatches, "maxMatches", 20, 1, 200)
     const { absolute, relative } = this.resolvePath(inputPath)
     const content = await this.#openAndRead(absolute)
     return searchAnchored({ path: relative, content, store: this.store, sessionId, workspaceKey: this.workspaceKey, query, regex, caseSensitive, contextLines, maxMatches })
   }
 
   async skeleton({ path: inputPath, sessionId = "default", maxLines = 200 }) {
-    maxLines = boundedInt(maxLines, "maxLines", 200, 1, 1000)
+    maxLines = clampedInt(maxLines, "maxLines", 200, 1, 1000)
     const { absolute, relative } = this.resolvePath(inputPath)
     const content = await this.#openAndRead(absolute, { maxBytes: Math.max(this.maxBytes, STRUCTURE_MAX_BYTES), oversizedHint: "use bounded native Read or split the file" })
     return fileSkeleton({ path: relative, content, store: this.store, sessionId, workspaceKey: this.workspaceKey, maxLines })
   }
 
   async getFunction({ path: inputPath, sessionId = "default", name, contextLines = 0, maxLines = 400 }) {
-    contextLines = boundedInt(contextLines, "contextLines", 0, 0, 50)
-    maxLines = boundedInt(maxLines, "maxLines", 400, 1, 2000)
+    contextLines = clampedInt(contextLines, "contextLines", 0, 0, 50)
+    maxLines = clampedInt(maxLines, "maxLines", 400, 1, 2000)
     const { absolute, relative } = this.resolvePath(inputPath)
     const content = await this.#openAndRead(absolute)
     return getFunction({ path: relative, content, store: this.store, sessionId, workspaceKey: this.workspaceKey, name, contextLines, maxLines })
   }
   async findAndAnchor({ path: inputPath = ".", sessionId = "default", query, regex = false, caseSensitive = false, contextLines = 2, maxMatches = 20, maxFiles = 80, maxMatchesPerFile = 5, glob }) {
-    contextLines = boundedInt(contextLines, "contextLines", 2, 0, 50)
-    maxMatches = boundedInt(maxMatches, "maxMatches", 20, 1, 200)
-    maxFiles = boundedInt(maxFiles, "maxFiles", 80, 1, 1000)
-    maxMatchesPerFile = boundedInt(maxMatchesPerFile, "maxMatchesPerFile", 5, 1, 50)
+    contextLines = clampedInt(contextLines, "contextLines", 2, 0, 50)
+    maxMatches = clampedInt(maxMatches, "maxMatches", 20, 1, 200)
+    maxFiles = clampedInt(maxFiles, "maxFiles", 80, 1, 1000)
+    maxMatchesPerFile = clampedInt(maxMatchesPerFile, "maxMatchesPerFile", 5, 1, 50)
     const { absolute } = this.resolvePath(inputPath)
     const rootRelative = path.relative(this.cwd, absolute) || "."
     return findAndAnchor({
@@ -360,6 +360,17 @@ function boundedInt(value, name, fallback, min, max) {
   const number = value === undefined || value === null ? fallback : Number(value)
   if (!Number.isInteger(number) || number < min || number > max) throw new Error(`${name} must be an integer ${min}..${max}`)
   return number
+}
+
+// Output-shaping knobs (context lines, match/line/file caps) never justify failing a call:
+// an over-range request is a preference, not a mistake, and a hard error costs a round-trip
+// and pushes the agent back to native reads. Clamp to the supported range instead; garbage
+// (non-numeric, fractional) still errors.
+function clampedInt(value, name, fallback, min, max) {
+  if (value === undefined || value === null) return fallback
+  const number = Number(value)
+  if (!Number.isInteger(number)) throw new Error(`${name} must be an integer ${min}..${max}`)
+  return Math.min(max, Math.max(min, number))
 }
 
 function optionalBoundedInt(value, name, min, max) {
