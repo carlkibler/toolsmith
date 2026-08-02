@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.57 — 2026-08-02
+
 - Clamp out-of-range output-shaping parameters (`contextLines`, `maxMatches`, `maxLines`, `maxFiles`, `maxMatchesPerFile`) instead of failing the call. A client asking for 55 context lines now gets 50 and its content; before, it got an error, lost a round trip, and had a reason to fall back to native reads. Non-integer values still error. Tool schemas drop the hard `maximum` so validating clients can't reject the request before the server can clamp it.
 
 ## 0.1.56 — 2026-08-02
