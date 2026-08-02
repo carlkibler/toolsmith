@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Retire the Homebrew tap. npm is the only supported install channel: the release pipeline no longer bumps a formula, and the README documents `npm install -g @carlkibler/toolsmith` throughout. An existing brew copy can never reach a newer version, so the update notice now tells those users to migrate (`brew uninstall carlkibler/tap/toolsmith && npm install -g @carlkibler/toolsmith`) instead of running a `brew upgrade` that would silently do nothing.
+
 ## 0.1.57 — 2026-08-02
 
 - Clamp out-of-range output-shaping parameters (`contextLines`, `maxMatches`, `maxLines`, `maxFiles`, `maxMatchesPerFile`) instead of failing the call. A client asking for 55 context lines now gets 50 and its content; before, it got an error, lost a round trip, and had a reason to fall back to native reads. Non-integer values still error. Tool schemas drop the hard `maximum` so validating clients can't reject the request before the server can clamp it.

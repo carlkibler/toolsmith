@@ -12,15 +12,6 @@ The honest catch: agents have native-tool muscle memory and don't always reach f
 
 **Requires Node.js ≥ 20.** macOS and Linux.
 
-**Homebrew** (macOS + Linux):
-
-```bash
-brew install carlkibler/tap/toolsmith
-toolsmith setup
-```
-
-**npm**:
-
 ```bash
 npm install -g @carlkibler/toolsmith
 toolsmith setup
@@ -32,7 +23,7 @@ toolsmith doctor --smoke
 ## Quickstart — see your savings in 4 steps
 
 ```bash
-brew install carlkibler/tap/toolsmith && toolsmith setup   # 1. install + register
+npm install -g @carlkibler/toolsmith && toolsmith setup   # 1. install + register
 # 2. use your agent normally for a day (let it touch some large files)
 toolsmith audit --days 7      # 3. tokens saved vs missed, per session
 toolsmith trends              # 4. week-over-week savings + your interception rate
@@ -43,9 +34,8 @@ Interception rate low? `toolsmith opportunities` shows exactly which native read
 ## Update
 
 ```bash
-toolsmith update                          # npm: latest release + re-register all clients
-brew upgrade carlkibler/tap/toolsmith     # Homebrew
-toolsmith update --check                  # just compare current vs latest
+toolsmith update          # latest release + re-register all clients
+toolsmith update --check  # just compare current vs latest
 ```
 
 Toolsmith also prints a one-line nudge (on an interactive terminal) when a newer version is available — checked at most once a day, cached, never blocking. Opt out with `TOOLSMITH_NO_UPDATE_CHECK=1`.
@@ -203,7 +193,7 @@ The only network request Toolsmith ever makes is an optional once-a-day version 
 toolsmith adopt --remove                 # remove preference blocks from CLAUDE.md / AGENTS.md
 toolsmith adopt --tripwire --remove      # if you enabled the tripwire
 claude mcp remove toolsmith              # per client (repeat for codex / gemini / cursor / …)
-brew uninstall carlkibler/tap/toolsmith  # or: npm uninstall -g @carlkibler/toolsmith
+npm uninstall -g @carlkibler/toolsmith   # remove the CLI + MCP server
 rm -rf ~/.local/state/toolsmith          # clear usage logs + update cache
 ```
 
