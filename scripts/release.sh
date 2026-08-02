@@ -33,6 +33,5 @@ git push origin main
 git push origin "$VERSION"
 
 echo ""
-echo "Released $VERSION — GitHub Actions publishes to npm, builds the release page,"
-echo "and (if HOMEBREW_TAP_TOKEN is set) bumps the Homebrew formula."
-echo "Install with:  npm install -g @carlkibler/toolsmith   (or: brew install carlkibler/tap/toolsmith)"
+echo "Released $VERSION — GitHub Actions publishes to npm and builds the release page."
+echo "Install with:  npm install -g @carlkibler/toolsmith"

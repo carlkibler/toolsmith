@@ -61,10 +61,11 @@ test("updateNoticeText recommends the command matching the install channel", asy
     assert.match(updateNoticeText("0.1.41", { kind: "npm-global" }), /Run: toolsmith update$/)
     assert.match(updateNoticeText("0.1.41", { kind: "git-checkout" }), /Run: git pull$/)
     assert.equal(updateNoticeText("0.1.50", { kind: "npm-global" }), null) // up to date
-    // Homebrew install (this module lives under the package root): brew upgrade, not npm.
+    // Homebrew install (this module lives under the package root): the tap is retired,
+    // so the notice must route those users to npm instead of a dead `brew upgrade`.
     const pkgRoot = path.resolve(fileURLToPath(import.meta.url), "..", "..")
     process.env.HOMEBREW_PREFIX = pkgRoot
-    assert.match(updateNoticeText("0.1.41", { kind: "npm-global" }), /Run: brew upgrade carlkibler\/tap\/toolsmith$/)
+    assert.match(updateNoticeText("0.1.41", { kind: "npm-global" }), /Run: brew uninstall carlkibler\/tap\/toolsmith && npm install -g @carlkibler\/toolsmith$/)
   })
   if (prevBrew === undefined) delete process.env.HOMEBREW_PREFIX
   else process.env.HOMEBREW_PREFIX = prevBrew
