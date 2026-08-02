@@ -137,6 +137,33 @@ test("WorkspaceTools findAndAnchor surfaces explicit file read errors", async ()
 
   assert.equal(result.error !== null, true)
   assert.match(result.text, /too large/)
+  assert.match(result.text, /file_skeleton for files up to 2 MiB/)
+})
+
+test("WorkspaceTools skeleton reads structural files up to 2 MiB", async () => {
+  const cwd = await tempWorkspace()
+  const content = Array.from({ length: 40000 }, (_, i) => `const value${i} = () => ${i}`).join("\n")
+  await fs.writeFile(path.join(cwd, "large.js"), content, "utf8")
+  const tools = new WorkspaceTools({ cwd })
+
+  const result = await tools.skeleton({ path: "large.js", maxLines: 3 })
+
+  assert.match(result.text, /value0/)
+  assert.equal(result.entries.length, 3)
+  assert.match(result.text, /Skeleton Lines: 3\+/)
+})
+
+test("WorkspaceTools search and findAndAnchor accept up to 50 context lines", async () => {
+  const cwd = await tempWorkspace()
+  await fs.writeFile(path.join(cwd, "context.txt"), `${"before\n".repeat(50)}needle\n${"after\n".repeat(50)}`, "utf8")
+  const tools = new WorkspaceTools({ cwd })
+
+  const search = await tools.search({ path: "context.txt", query: "needle", contextLines: 50 })
+  const find = await tools.findAndAnchor({ path: "context.txt", query: "needle", contextLines: 50 })
+
+  assert.equal(search.matches[0].endLine - search.matches[0].startLine + 1, 101)
+  assert.equal(find.matches[0].endLine - find.matches[0].startLine + 1, 101)
+  await assert.rejects(() => tools.search({ path: "context.txt", query: "needle", contextLines: 51 }), /integer 0\.\.50/)
 })
 
 test("CLI read emits anchored content", async () => {

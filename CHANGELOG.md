@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Accept up to 50 context lines in `anchored_search` and `find_and_anchor`, eliminating avoidable validation failures from clients requesting broader local context.
+- Let `file_skeleton` inspect text files up to 2 MiB while preserving the 512 KiB read/edit ceiling for other operations, and replace misleading oversized-file guidance with an accurate bounded-read fallback.
+
 ## 0.1.56 — 2026-07-17
 
 - Add `toolsmith doctor --wire`: an end-to-end wire canary that spawns the MCP server in a throwaway workspace, reads a probe file, and asserts the anchored body arrives on BOTH delivery channels — `content[0].text` and `structuredContent.text`. Exits non-zero on failure so a cron or reminder can alert. This is the check that would have caught the 0.1.53 structuredContent regression on day 1 instead of day 29: server-side telemetry kept reporting savings while Claude clients received none.

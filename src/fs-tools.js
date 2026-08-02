@@ -14,6 +14,7 @@ import { findAndAnchor } from "./find-anchor.js"
 import { makeTelemetry } from "./telemetry.js"
 
 const DEFAULT_MAX_BYTES = 512 * 1024
+const STRUCTURE_MAX_BYTES = 2 * 1024 * 1024
 
 export class WorkspaceTools {
   #locks = new Map()
@@ -45,7 +46,7 @@ export class WorkspaceTools {
 
 
   async search({ path: inputPath, sessionId = "default", query, regex = false, caseSensitive = false, contextLines = 1, maxMatches = 20 }) {
-    contextLines = boundedInt(contextLines, "contextLines", 1, 0, 20)
+    contextLines = boundedInt(contextLines, "contextLines", 1, 0, 50)
     maxMatches = boundedInt(maxMatches, "maxMatches", 20, 1, 200)
     const { absolute, relative } = this.resolvePath(inputPath)
     const content = await this.#openAndRead(absolute)
@@ -55,7 +56,7 @@ export class WorkspaceTools {
   async skeleton({ path: inputPath, sessionId = "default", maxLines = 200 }) {
     maxLines = boundedInt(maxLines, "maxLines", 200, 1, 1000)
     const { absolute, relative } = this.resolvePath(inputPath)
-    const content = await this.#openAndRead(absolute)
+    const content = await this.#openAndRead(absolute, { maxBytes: Math.max(this.maxBytes, STRUCTURE_MAX_BYTES), oversizedHint: "use bounded native Read or split the file" })
     return fileSkeleton({ path: relative, content, store: this.store, sessionId, workspaceKey: this.workspaceKey, maxLines })
   }
 
@@ -67,7 +68,7 @@ export class WorkspaceTools {
     return getFunction({ path: relative, content, store: this.store, sessionId, workspaceKey: this.workspaceKey, name, contextLines, maxLines })
   }
   async findAndAnchor({ path: inputPath = ".", sessionId = "default", query, regex = false, caseSensitive = false, contextLines = 2, maxMatches = 20, maxFiles = 80, maxMatchesPerFile = 5, glob }) {
-    contextLines = boundedInt(contextLines, "contextLines", 2, 0, 20)
+    contextLines = boundedInt(contextLines, "contextLines", 2, 0, 50)
     maxMatches = boundedInt(maxMatches, "maxMatches", 20, 1, 200)
     maxFiles = boundedInt(maxFiles, "maxFiles", 80, 1, 1000)
     maxMatchesPerFile = boundedInt(maxMatchesPerFile, "maxMatchesPerFile", 5, 1, 50)
@@ -277,7 +278,7 @@ export class WorkspaceTools {
     }
   }
 
-  async #openAndRead(absolute) {
+  async #openAndRead(absolute, { maxBytes = this.maxBytes, oversizedHint = "use file_skeleton for files up to 2 MiB, or bounded native Read" } = {}) {
     let fd
     try {
       fd = await fs.open(absolute, "r")
@@ -287,7 +288,7 @@ export class WorkspaceTools {
     try {
       const stats = await fd.stat()
       if (!stats.isFile()) throw new Error(`not a file: ${path.relative(this.cwd, absolute)}`)
-      if (stats.size > this.maxBytes) throw new Error(`file is too large (${stats.size} bytes > ${this.maxBytes}); use file_skeleton or find_and_anchor for targeted navigation`)
+      if (stats.size > maxBytes) throw new Error(`file is too large (${stats.size} bytes > ${maxBytes}); ${oversizedHint}`)
       const buffer = await fd.readFile()
       if (looksBinary(buffer)) throw new Error(`refusing to read binary file: ${path.relative(this.cwd, absolute)}`)
       return buffer.toString("utf8")
