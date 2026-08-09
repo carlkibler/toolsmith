@@ -57,7 +57,7 @@ Canonical project instructions: `CLAUDE.md`.
 <!-- Toolsmith — https://github.com/carlkibler/toolsmith — https://www.npmjs.com/package/@carlkibler/toolsmith -->
 ## Toolsmith MCP
 
-Toolsmith is the default path for large-file code navigation and surgical edits when MCP tools are available. Native Read with an explicit small range/limit up to ~300 lines is fine for inspection; use Toolsmith for broad reads, whole-file reads, and edits in files over ~200 lines.
+**Large file (>200 lines): Toolsmith first. Anchor before alteration.** Native Read with an explicit small range/limit up to ~300 lines is fine for inspection; use Toolsmith for broad reads, whole-file reads, and edits.
 
 - Explore structure: `mcp__toolsmith__file_skeleton` (replaces `cat`/`nl` on large files)
 - Read a broad/editable range: `mcp__toolsmith__anchored_read` with `startLine`/`endLine`; narrow native reads are okay for inspection
@@ -68,5 +68,6 @@ Toolsmith is the default path for large-file code navigation and surgical edits 
 - If you already used a native bounded read and need to edit that area, switch to Toolsmith before changing it so anchors and telemetry exist
 - **Codex**: avoid `apply_patch` on >200-line files — use `find_and_anchor` then `anchored_edit` or `anchored_edit_many` instead
 - **Codex**: broad `sed -n 'N,Mp' large-file` → `anchored_read`; `cat large-file` or `nl large-file` → `file_skeleton`
+- Path: `file_skeleton` → `find_and_anchor` or `get_function` → `anchored_edit`. Avoid: whole-file Read → native Edit.
 
 <!-- toolsmith:end -->
