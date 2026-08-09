@@ -511,6 +511,8 @@ test("setup: injects priming block into ~/.claude/CLAUDE.md", async () => {
     const content = await fs.readFile(claudeMd, "utf8")
     assert.match(content, /<!-- toolsmith:begin -->/, "priming sentinel must be present")
     assert.match(content, /mcp__toolsmith__file_skeleton/, "priming block content must include file_skeleton")
+    assert.match(content, /Large file \(>200 lines\): Toolsmith first/, "priming must lead with the activation invariant")
+    assert.match(content, /Anchor before alteration/, "priming must name the reusable sequence")
     assert.match(content, /apply_patch.*>200-line|>200-line.*apply_patch/s, "priming must include Codex apply_patch guidance")
     assert.match(content, /sed -n.*anchored_read|anchored_read.*sed -n/s, "priming must redirect Codex sed -n to anchored_read")
     assert.match(content, /<!-- toolsmith:end -->/, "end sentinel must be present")

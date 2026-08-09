@@ -243,11 +243,15 @@ test("MCP server lists and calls anchored tools", async () => {
     assert(tools.some((t) => t.name === "get_function"))
     assert(tools.some((t) => t.name === "find_and_anchor"))
     assert(tools.some((t) => t.name === "symbol_replace"))
+    assert.match(tools.find((t) => t.name === "file_skeleton").description, /default first read/)
+    assert.match(tools.find((t) => t.name === "anchored_edit").description, /Anchor before alteration/)
 
     await fs.writeFile(path.join(cwd, "code.js"), "function demo() {\n  return 1\n}\n", "utf8")
     const skeleton = await client.callTool("file_skeleton", { path: "code.js", sessionId: "mcp" })
     assert.match(skeleton.content[0].text, /§function demo/)
     assert.equal(skeleton.structuredContent.text, skeleton.content[0].text)
+    assert.match(skeleton.content[0].text, /Next: choose get_function/)
+    assert.equal(skeleton.structuredContent.nextAction, "choose get_function for one symbol, find_and_anchor for a target, or bounded anchored_read for a range.")
     assert.equal(skeleton.structuredContent.entries[0].text, undefined)
     assert.equal(skeleton.structuredContent.entries[0].anchor, undefined)
     assert.equal(skeleton.structuredContent.compression.strategy, "lossless_mcp_result_trim")
@@ -267,12 +271,14 @@ test("MCP server lists and calls anchored tools", async () => {
     assert.match(found.content[0].text, /code\.js/)
     assert.match(found.content[0].text, /§  return 2/)
     assert.equal(found.structuredContent.text, found.content[0].text)
+    assert.match(found.content[0].text, /Next: use anchored_edit/)
     assert.equal(found.structuredContent.matches[0].text, undefined)
     assert.equal(found.structuredContent.matches[0].snippet, undefined)
 
     const search = await client.callTool("anchored_search", { path: "demo.txt", query: "green", sessionId: "mcp", contextLines: 0 })
     assert.match(search.content[0].text, /§green/)
     assert.equal(search.structuredContent.text, search.content[0].text)
+    assert.match(search.content[0].text, /Next: use anchored_edit/)
 
     const badSearch = await client.callTool("anchored_search", { path: "demo.txt", query: "(x+)+$", regex: true, sessionId: "mcp" })
     assert.equal(badSearch.isError, true)
@@ -282,6 +288,7 @@ test("MCP server lists and calls anchored tools", async () => {
     const read = await client.callTool("anchored_read", { path: "demo.txt", sessionId: "mcp" })
     assert.match(read.content[0].text, /§green/)
     assert.equal(read.structuredContent.text, read.content[0].text)
+    assert.match(read.content[0].text, /Next: use anchored_edit/)
     assert.equal(read.structuredContent.anchors, undefined)
     const readText = read.content[0].text
     assert.match(readText, /§green/)

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.1.58 — 2026-08-09
+
+- Strengthen Toolsmith adoption without enforcement: tool descriptions now put the >200-line decision at selection time, read/search results carry a short exact next action into the anchored edit path, and the durable priming block leads with `Toolsmith first. Anchor before alteration.`
+
 - Retire the Homebrew tap. npm is the only supported install channel: the release pipeline no longer bumps a formula, and the README documents `npm install -g @carlkibler/toolsmith` throughout. An existing brew copy can never reach a newer version, so the update notice now tells those users to migrate (`brew uninstall carlkibler/tap/toolsmith && npm install -g @carlkibler/toolsmith`) instead of running a `brew upgrade` that would silently do nothing.
 
 ## 0.1.57 — 2026-08-02

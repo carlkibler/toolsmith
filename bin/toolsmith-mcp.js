@@ -52,16 +52,19 @@ function envEnabled(value) {
   return /^(1|true|yes|on|debug|verbose)$/i.test(String(value || ""))
 }
 
-function mcpToolResult(result, summary, { isError = false } = {}) {
+function mcpToolResult(result, summary, { isError = false, nextAction } = {}) {
   const mode = resultMode()
-  const text = result?.text || summary
+  const body = result?.text || summary
+  const text = nextAction && !isError ? `${body}\n\nNext: ${nextAction}` : body
+  const enrichedResult = nextAction && !isError ? { ...result, nextAction } : result
   if (mode === "summary") {
     const saved = result?.telemetry?.estimatedTokensAvoided
     const summaryText = saved > 0 ? `${summary} (saved ~${Math.round(saved)} tokens)` : summary
-    return { content: [{ type: "text", text: summaryText }], structuredContent: result, isError }
+    const promptedSummary = nextAction && !isError ? `${summaryText} Next: ${nextAction}` : summaryText
+    return { content: [{ type: "text", text: promptedSummary }], structuredContent: enrichedResult, isError }
   }
 
-  const structuredContent = mode === "compact" ? compactStructuredResult(result, { text }) : result
+  const structuredContent = mode === "compact" ? compactStructuredResult(enrichedResult, { text }) : { ...enrichedResult, text }
   return { content: [{ type: "text", text }], structuredContent, isError }
 }
 
@@ -214,7 +217,7 @@ registerTool(
   "anchored_read",
   {
     title: "Anchored Read",
-    description: "Prefer over native Read for files >200 lines — reads only the requested range and returns stable Anchor§line references for anchored_edit. Use startLine/endLine to limit transfer. Copy anchors exactly.",
+    description: "Large file (>200 lines): default broad or editable read. Returns stable line references; next step is anchored_edit with the same sessionId. Use startLine/endLine to limit transfer. Anchor before alteration.",
     inputSchema: {
       type: "object",
       properties: {
@@ -229,7 +232,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.read(args)
-    return mcpToolResult(result, readSummary(result))
+    return mcpToolResult(result, readSummary(result), { nextAction: "use anchored_edit with these anchors and the same sessionId if you need to change this file." })
   },
 )
 
@@ -237,7 +240,7 @@ registerTool(
   "anchored_search",
   {
     title: "Anchored Search",
-    description: "Use instead of grep when you'll edit results — returns anchored snippets ready for anchored_edit without a separate read.",
+    description: "Search one file when you intend to edit: returns anchored snippets ready for anchored_edit with no separate read. Prefer over grep on files >200 lines. Anchor before alteration.",
     inputSchema: {
       type: "object",
       properties: {
@@ -255,7 +258,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.search(args)
-    return mcpToolResult(result, searchSummary(result), { isError: Boolean(result.error) })
+    return mcpToolResult(result, searchSummary(result), { isError: Boolean(result.error), nextAction: result.matches?.length ? "use anchored_edit with a returned anchor and the same sessionId." : "adjust the query; no editable anchor was returned." })
   },
 )
 
@@ -263,7 +266,7 @@ registerTool(
   "find_and_anchor",
   {
     title: "Find and Anchor",
-    description: "Repo/file search that returns anchored snippets ready for anchored_edit. Use instead of rg+sed/cat when searching large or unfamiliar files. Directory searches rank candidate files by BM25 relevance to the query (most relevant first) and honor a .toolsmithignore file (gitignore syntax) at the search root.",
+    description: "Large or unfamiliar codebase: default search before editing. Returns anchored snippets ready for anchored_edit; prefer over rg+sed/cat. Directory searches rank candidates by BM25 and honor .toolsmithignore. Anchor before alteration.",
     inputSchema: {
       type: "object",
       properties: {
@@ -284,7 +287,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.findAndAnchor(args)
-    return mcpToolResult(result, findSummary(result), { isError: Boolean(result.error) })
+    return mcpToolResult(result, findSummary(result), { isError: Boolean(result.error), nextAction: result.matches?.length ? "use anchored_edit on the chosen match with the same sessionId." : "adjust the query or glob; no editable anchor was returned." })
   },
 )
 
@@ -293,7 +296,7 @@ registerTool(
   "file_skeleton",
   {
     title: "File Skeleton",
-    description: "Use instead of native Read to explore large or unfamiliar files — returns only declarations (functions, classes, constants) at ~10% of full-file token cost. Orient here before get_function or anchored_read.",
+    description: "Large file (>200 lines): default first read. Returns declarations at ~10% of full-file token cost. Next choose get_function, find_and_anchor, or bounded anchored_read instead of reading the whole file.",
     inputSchema: {
       type: "object",
       properties: {
@@ -307,7 +310,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.skeleton(args)
-    return mcpToolResult(result, skeletonSummary(result))
+    return mcpToolResult(result, skeletonSummary(result), { nextAction: "choose get_function for one symbol, find_and_anchor for a target, or bounded anchored_read for a range." })
   },
 )
 
@@ -315,7 +318,7 @@ registerTool(
   "get_function",
   {
     title: "Get Function",
-    description: "Prefer over native Read when the target symbol is known — returns only that function, class, or method's anchored source without reading the whole file.",
+    description: "Known symbol in a large file: default read. Returns only that function, class, or method with anchors; next use anchored_edit with the same sessionId, or symbol_replace when no pre-read is needed.",
     inputSchema: {
       type: "object",
       properties: {
@@ -331,7 +334,7 @@ registerTool(
   },
   async (args) => {
     const result = await workspace.getFunction(args)
-    return mcpToolResult(result, functionSummary(result), { isError: false })
+    return mcpToolResult(result, functionSummary(result), { isError: false, nextAction: result.found ? "use anchored_edit with these anchors and the same sessionId." : "use file_skeleton or find_and_anchor to locate the current symbol." })
   },
 )
 
@@ -371,7 +374,7 @@ registerTool(
   "anchored_edit",
   {
     title: "Anchored Edit",
-    description: "Prefer over native Edit for files >200 lines — validates anchor content matches current file before writing, preventing silent overwrites when files change between read and edit. Prereq: anchored_read, anchored_search, or get_function. anchor must be full Anchor§line string; endAnchor required for replace.",
+    description: "Large file (>200 lines): default edit after anchored_read, anchored_search, find_and_anchor, or get_function. Validates the current file before writing. Use the same sessionId and copy full line references exactly. Anchor before alteration.",
     inputSchema: {
       type: "object",
       properties: {

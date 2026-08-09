@@ -14,7 +14,7 @@ Get the edit primitives right first:
 
 ## Tool Preference
 
-When MCP tools are available, Toolsmith is the default path for large-file code navigation and surgical edits.
+**Large file (>200 lines): Toolsmith first. Anchor before alteration.** When MCP tools are available, Toolsmith is the default path for broad navigation and surgical edits.
 
 - Files likely >200 lines: use `mcp__toolsmith__file_skeleton`, `mcp__toolsmith__get_function`, or `mcp__toolsmith__anchored_read` for broad reads and edits; native `Read` with an explicit small range/limit up to ~300 lines is fine for inspection.
 - Search before editing: use `mcp__toolsmith__find_and_anchor` or `mcp__toolsmith__anchored_search` instead of `rg` + `sed`/`cat`.
