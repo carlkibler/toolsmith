@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Exit when the client is gone instead of spinning. An orphaned MCP server was found burning 100% of a core for its entire 27-minute life, long after the editor that spawned it had quit. The cause was the catch-all `uncaughtException` guard: once the client's read end closed, every reply raised `EPIPE`, the handler logged it and returned, and the next reply raised it again — a loop with no exit. Broken-pipe errors now shut the server down rather than being logged and retried, `stdin` reaching EOF exits, and a `ppid` watchdog (30s, `TOOLSMITH_ORPHAN_CHECK_MS=0` to disable) catches the case where a parent dies holding both pipes open so `stdin` never reaches EOF. A fault-rate backstop exits on any error source firing more than 50 times in 5 seconds, so an unanticipated loop costs a restart instead of a core.
+
 ## 0.1.58 — 2026-08-09
 
 - Strengthen Toolsmith adoption without enforcement: tool descriptions now put the >200-line decision at selection time, read/search results carry a short exact next action into the anchored edit path, and the durable priming block leads with `Toolsmith first. Anchor before alteration.`

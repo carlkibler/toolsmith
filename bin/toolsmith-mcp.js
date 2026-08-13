@@ -501,15 +501,78 @@ registerTool(
   },
 )
 
+// A stdio MCP server must never outlive its client. It can be stranded three
+// ways: stdin closes, the output pipe breaks, or the parent dies holding both
+// open. Each one exits. None of them spin.
+const initialPpid = process.ppid
+let shuttingDown = false
+
+// A clean stdin close is the expected end of life, so it exits quietly; every
+// other path is abnormal and says why, since stderr is the only trace left.
+function shutdown(reason, { code = 0, quiet = false } = {}) {
+  if (shuttingDown) return
+  shuttingDown = true
+  if (!quiet) {
+    try { process.stderr.write(`[toolsmith-mcp] exiting: ${reason}\n`) } catch { /* stderr may be gone too */ }
+  }
+  process.exit(code)
+}
+
+function isBrokenPipe(err) {
+  return ["EPIPE", "EBADF", "ERR_STREAM_DESTROYED", "ERR_STREAM_WRITE_AFTER_END"].includes(err?.code)
+}
+
+// Every JSON-RPC reply goes through here. A dead channel means the client is
+// gone: shut down, rather than logging an error and being asked to write again.
+function writeMessage(payload) {
+  if (shuttingDown) return
+  try {
+    process.stdout.write(JSON.stringify(payload) + "\n")
+  } catch (e) {
+    if (isBrokenPipe(e)) shutdown("output pipe closed")
+    else throw e
+  }
+}
+
+process.stdout.on("error", (e) => { if (isBrokenPipe(e)) shutdown("output pipe closed") })
+process.stderr.on("error", () => { /* logging must never cascade into more faults */ })
+
+// Backstop for faults we haven't imagined: any error source firing this fast is
+// a loop, not a workload. Exit rather than burn a core until someone notices.
+const FAULT_LIMIT = 50
+const FAULT_WINDOW_MS = 5000
+let faults = []
+
+function faultStorm() {
+  const now = Date.now()
+  faults = faults.filter((at) => now - at < FAULT_WINDOW_MS)
+  faults.push(now)
+  return faults.length > FAULT_LIMIT
+}
+
 // Process lifetime guards — keep the server alive past individual request errors.
 process.on("uncaughtException", (err) => {
+  if (isBrokenPipe(err)) return shutdown("output pipe closed")
   process.stderr.write(`[toolsmith-mcp] uncaughtException: ${err?.message ?? err}\n`)
+  if (faultStorm()) shutdown("fault storm — exiting instead of looping", { code: 70 })
 })
 process.on("unhandledRejection", (reason) => {
+  if (isBrokenPipe(reason)) return shutdown("output pipe closed")
   process.stderr.write(`[toolsmith-mcp] unhandledRejection: ${reason?.message ?? reason}\n`)
+  if (faultStorm()) shutdown("fault storm — exiting instead of looping", { code: 70 })
 })
-// Ignore SIGPIPE so a parent disconnect mid-write doesn't crash the server.
+// Ignore the signal so a disconnect mid-write surfaces as an EPIPE we handle
+// above, instead of killing the process in the middle of a response.
 process.on("SIGPIPE", () => {})
+
+// Last resort: a parent that dies without closing the pipes leaves us reparented
+// to PID 1 with a stdin that never reaches EOF. Nothing else detects that.
+const orphanCheckMs = Number(process.env.TOOLSMITH_ORPHAN_CHECK_MS ?? 30000)
+if (orphanCheckMs > 0 && initialPpid !== 1) {
+  setInterval(() => {
+    if (process.ppid === 1) shutdown("parent exited — server orphaned")
+  }, orphanCheckMs).unref()
+}
 
 // Start
 await usageLogger.startup()
@@ -521,11 +584,12 @@ rl.on("line", async (line) => {
   try { msg = JSON.parse(trimmed) } catch { return }
   try {
     const response = await dispatch(msg)
-    if (response !== null) process.stdout.write(JSON.stringify(response) + "\n")
+    if (response !== null) writeMessage(response)
   } catch (e) {
     process.stderr.write(`[toolsmith-mcp] dispatch error: ${e?.message ?? e}\n`)
     if (msg.id !== undefined) {
-      process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: { code: -32603, message: e?.message ?? String(e) } }) + "\n")
+      writeMessage({ jsonrpc: "2.0", id: msg.id, error: { code: -32603, message: e?.message ?? String(e) } })
     }
   }
 })
+rl.on("close", () => shutdown("stdin closed", { quiet: true }))
