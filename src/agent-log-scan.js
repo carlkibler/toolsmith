@@ -46,12 +46,14 @@ export function scanAgentLogs({
   includeExamples = true,
   claudeRoot = path.join(home, ".claude", "projects"),
   codexRoot = path.join(home, ".codex", "sessions"),
+  ompRoot = path.join(home, ".omp", "agent", "sessions"),
 } = {}) {
   const sinceMs = Date.now() - Number(days || 7) * 24 * 60 * 60 * 1000
-  const stats = makeStats({ host, days: Number(days || 7), home, claudeRoot, codexRoot, maxExamples, includeExamples })
+  const stats = makeStats({ host, days: Number(days || 7), home, claudeRoot, codexRoot, ompRoot, maxExamples, includeExamples })
 
   for (const file of recentJsonlFiles(claudeRoot, sinceMs)) processClaudeFile(file, stats)
   for (const file of recentJsonlFiles(codexRoot, sinceMs)) processCodexFile(file, stats)
+  for (const file of recentJsonlFiles(ompRoot, sinceMs)) processOmpFile(file, stats)
 
   return finalizeStats(stats)
 }
@@ -71,13 +73,14 @@ export function formatAgentLogScanMarkdown(scan) {
     ["Agent", "Sessions", "Records", "Top tools"],
     ["Claude", scan.sessions.claude || 0, scan.records.claude || 0, formatCounts(scan.tools.claude, 6)],
     ["Codex", scan.sessions.codex || 0, scan.records.codex || 0, formatCounts(scan.tools.codex, 6)],
+    ["omp", scan.sessions.omp || 0, scan.records.omp || 0, formatCounts(scan.tools.omp || [], 6)],
   ]
 
   return [
     `# Agent log scan — ${scan.host} (${scan.days} day${scan.days === 1 ? "" : "s"})`,
     "",
     `Generated: ${scan.generatedAt}`,
-    `Paths: Claude ${scan.paths.claude}; Codex ${scan.paths.codex}`,
+    `Paths: Claude ${scan.paths.claude}; Codex ${scan.paths.codex}${scan.paths.omp ? `; omp ${scan.paths.omp}` : ""}`,
     "",
     markdownTable(rows),
     "",
@@ -160,18 +163,18 @@ export function adoptionSnippet(client = "all") {
   return [`# Claude Code`, claude, ``, `# Codex`, codex, ``, `# Gemini CLI`, gemini].join("\n")
 }
 
-function makeStats({ host, days, home, claudeRoot, codexRoot, maxExamples, includeExamples }) {
+function makeStats({ host, days, home, claudeRoot, codexRoot, ompRoot, maxExamples, includeExamples }) {
   return {
     host,
     days,
     generatedAt: new Date().toISOString(),
     home,
-    paths: { claude: redactPath(claudeRoot, home), codex: redactPath(codexRoot, home) },
+    paths: { claude: redactPath(claudeRoot, home), codex: redactPath(codexRoot, home), omp: redactPath(ompRoot, home) },
     maxExamples,
     includeExamples,
-    sessions: { claude: 0, codex: 0 },
-    records: { claude: 0, codex: 0 },
-    tools: { claude: new Map(), codex: new Map() },
+    sessions: { claude: 0, codex: 0, omp: 0 },
+    records: { claude: 0, codex: 0, omp: 0 },
+    tools: { claude: new Map(), codex: new Map(), omp: new Map() },
     toolsmith: { toolCalls: 0, byTool: new Map(), sessions: new Set(), cliMentions: 0, activationSearches: 0 },
     lost: {
       total: 0,
@@ -205,7 +208,7 @@ function finalizeStats(stats) {
     userMessages: stats.userMessages,
     userChars: stats.userChars,
     workspaceNames: topEntries(stats.workspaceNames, 30),
-    tools: { claude: topEntries(stats.tools.claude, 40), codex: topEntries(stats.tools.codex, 40) },
+    tools: { claude: topEntries(stats.tools.claude, 40), codex: topEntries(stats.tools.codex, 40), omp: topEntries(stats.tools.omp, 40) },
     toolsmith: {
       toolCalls: stats.toolsmith.toolCalls,
       sessions: stats.toolsmith.sessions.size,
@@ -290,6 +293,69 @@ function processCodexFile(file, stats) {
       stats.toolsmith.activationSearches += 1
     }
   }
+}
+
+// omp (oh-my-pi) sessions: ~/.omp/agent/sessions/<project>/<stamp>_<id>.jsonl, with tool
+// calls as {type:"toolCall"} blocks inside a message's content array. Worth scanning
+// because omp inherits toolsmith's MCP registration from the Claude/Codex configs, so it
+// can show heavy native large-file use while reporting zero toolsmith calls — and until
+// it was scanned there was no way to see that, or to tell whether priming fixed it.
+function processOmpFile(file, stats) {
+  stats.sessions.omp += 1
+  let cwd = null
+
+  for (const record of readJsonl(file, stats)) {
+    stats.records.omp += 1
+    if (record.type === "session") {
+      cwd = record.cwd || cwd
+      if (cwd) inc(stats.workspaceNames, path.basename(cwd))
+      continue
+    }
+    if (record.type !== "message") continue
+    const message = record.message && typeof record.message === "object" ? record.message : {}
+    if (message.role === "user") classifyUserText(extractOmpText(message), stats)
+
+    for (const block of Array.isArray(message.content) ? message.content : []) {
+      if (!block || block.type !== "toolCall") continue
+      const name = block.name || "unknown"
+      inc(stats.tools.omp, name)
+      trackToolsmith(name, stats, file)
+      const args = block.arguments && typeof block.arguments === "object" ? block.arguments : parseJson(block.partialArgs, {})
+      if (name === "bash") classifyShellCommand(args.cmd || args.command, args.cwd || cwd, { agent: "omp", ts: record.timestamp, sessionPath: file }, stats)
+      else if (name === "read" || name === "edit" || name === "write") classifyOmpFileTool({ name, args, cwd, ts: record.timestamp, sessionPath: file }, stats)
+    }
+  }
+}
+
+function classifyOmpFileTool({ name, args, cwd, ts, sessionPath }, stats) {
+  const raw = args.path || args.file_path || args.file
+  // omp loads skills through the same read tool (`skill://name`); those are not files.
+  if (!raw || String(raw).includes("://")) return
+  // A read that already asked for a slice is the behaviour toolsmith wants, not a miss.
+  if (name === "read" && (args.offset !== undefined || args.limit !== undefined)) return
+  const target = resolveTarget(raw, cwd)
+  const lines = cachedLineCount(target, stats)
+  if (!lines || lines <= 200) return
+  addLost(stats, name === "read" ? "omp_native_read_large_file" : "omp_native_edit_large_file", {
+    agent: "omp",
+    kind: `native ${name} on large file`,
+    timestamp: ts,
+    session: redactPath(sessionPath, stats.home),
+    cwd: redactPath(cwd, stats.home),
+    file: redactPath(target, stats.home),
+    lines,
+    why: `omp ${name} pulled a >${200}-line file with no range`,
+    use: name === "read"
+      ? "file_skeleton, get_function, find_and_anchor, or bounded anchored_read"
+      : "anchored_read then anchored_edit, or symbol_replace for one symbol",
+  })
+}
+
+function extractOmpText(message) {
+  return (Array.isArray(message.content) ? message.content : [])
+    .filter((block) => block && block.type === "text")
+    .map((block) => block.text || "")
+    .join("\n")
 }
 
 function classifyNativeRead({ agent, ref, resultContent }, stats) {
