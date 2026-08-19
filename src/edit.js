@@ -100,13 +100,25 @@ function resolveAnchor(field, reference, lines, anchors, editIndex) {
     const hint = anchors.length === 0
       ? `no anchors registered for this path/session; call anchored_read first`
       : `not found in ${anchors.length} current anchors; re-read the file if it has changed`
-    return { error: `${field} "${anchor}" ${hint}` }
+    return { error: `${field} "${anchor}" ${hint}${recoveryHint(content, lines, anchors)}` }
   }
   if (content === null) return { error: `${field} "${anchor}" must include exact line content after ${ANCHOR_DELIMITER}; use ${JSON.stringify(formatAnchoredLine(anchor, lines[index]))}` }
   if (content.includes("\n") || content.includes("\r")) return { error: `${field} "${anchor}" must reference exactly one line` }
   if (lines[index] !== content) return { error: `${field} "${anchor}" content mismatch; expected full reference ${JSON.stringify(formatAnchoredLine(anchor, lines[index]))}, got line content ${JSON.stringify(content)}${anchorMismatchHint()}` }
 
   return { anchor, index }
+}
+
+// A stale anchor used to cost two turns: one to be told "re-read the file", one to read
+// it. The line content the caller already sent is enough to locate the line now, so hand
+// back a usable anchor and let the retry be a single turn. Only when the content appears
+// exactly once — an ambiguous match is what a re-read is actually for.
+function recoveryHint(content, lines, anchors) {
+  if (content === null || content === undefined) return ""
+  const first = lines.indexOf(content)
+  if (first === -1 || lines.indexOf(content, first + 1) !== -1) return ""
+  const reference = formatAnchoredLine(anchors[first], lines[first])
+  return `\nThat line content is now line ${first + 1}; retry with ${JSON.stringify(reference)} (no re-read needed).`
 }
 
 function anchorMismatchHint() {

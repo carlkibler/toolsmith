@@ -53,14 +53,14 @@ export function attachTelemetry(result, telemetry) {
 // increment from the store ledger, so reading one file in N chunks can't claim N x the
 // file. estimatedTokensAvoided becomes the signed per-call increment (the rollup sums
 // these to the honest cumulative); cumulativeTokensAvoided is kept for transparency.
-export function applyReadCredit(telemetry, store, { path, sessionId, workspaceKey, hash } = {}) {
+export function applyReadCredit(telemetry, store, { path, sessionId, workspaceKey, hash, spendTokens } = {}) {
   if (!telemetry || !store || typeof store.creditRead !== "function") return telemetry
   const credit = store.creditRead(path, {
     sessionId,
     workspaceKey,
     hash,
     baselineTokens: telemetry.estimatedFullTokens || 0,
-    responseTokens: telemetry.estimatedResponseTokens || 0,
+    responseTokens: spendTokens === undefined ? (telemetry.estimatedResponseTokens || 0) : spendTokens,
   })
   telemetry.estimatedTokensAvoided = credit.incrementalAvoided
   telemetry.cumulativeTokensAvoided = credit.cumulativeAvoided
@@ -69,4 +69,30 @@ export function applyReadCredit(telemetry, store, { path, sessionId, workspaceKe
     compressedTokens: Math.max(0, (telemetry.estimatedFullTokens || 0) - credit.incrementalAvoided),
   })
   return telemetry
+}
+
+// A call that changed nothing avoided nothing. Failed and no-op edits used to book a
+// full-file saving AND cost the agent a retry turn, which inverted the metric: the
+// worse toolsmith performed, the better it scored. Zeroing them is the honest floor.
+export function zeroCredit(telemetry, reason) {
+  if (!telemetry) return telemetry
+  telemetry.estimatedTokensAvoided = 0
+  telemetry.noCreditReason = reason
+  telemetry.compression = makeCompressionReceipt({
+    originalTokens: telemetry.estimatedFullTokens || 0,
+    compressedTokens: telemetry.estimatedFullTokens || 0,
+  })
+  return telemetry
+}
+
+// The honest counterfactual for an edit is NOT "we avoided reading the whole file" —
+// that saving belongs to the read that located the anchor, and booking it again on the
+// edit double-counts it. An edit spends what the agent had to emit and read back, and
+// only earns credit when nothing in this session had loaded the file yet.
+export function applyEditCredit(telemetry, store, { path, sessionId, workspaceKey, hash, ok, changed } = {}) {
+  if (!telemetry) return telemetry
+  if (!ok) return zeroCredit(telemetry, "failed")
+  if (!changed) return zeroCredit(telemetry, "unchanged")
+  const spendTokens = (telemetry.estimatedResponseTokens || 0) + Math.ceil((telemetry.requestBytes || 0) / 4)
+  return applyReadCredit(telemetry, store, { path, sessionId, workspaceKey, hash, spendTokens })
 }

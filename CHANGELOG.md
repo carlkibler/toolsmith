@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Stop paying savings for work that did not happen. A failed or no-op edit used to book the full pre-edit file as "tokens avoided" — 290 such calls claimed 6.3M tokens over two weeks while actually costing the agent a retry turn each, so the metric rose when the tool performed worse. Failed and unchanged calls are now credited zero and tagged with `telemetry.noCreditReason`.
+
+- Credit edits against the same per-file ledger as reads. `anchored_edit`, `anchored_edit_many` and `symbol_replace` previously claimed the whole pre-edit file, and 98.5% of them ran on a file already read in that session, so the avoided whole-file load was booked twice. Edits now settle through the read ledger: an edit that follows a read earns nothing extra, while an edit on a file this session never loaded still earns first-contact credit. On two weeks of real traffic this cut the reported figure from 111M tokens to 26M — the smaller number is the defensible one.
+
+- Log why an edit failed. Edit failures were recorded as a bare `ok:false`, which made a 12.8% `anchored_edit` failure rate (24.7% for `anchored_edit_many`) impossible to diagnose after the fact. Records now carry `errorCodes` — `anchor_stale`, `anchor_content_mismatch`, `no_anchors_registered`, and so on — classified rather than quoted, because the raw messages embed file content and `usage.jsonl` is not a place to accumulate source lines. `toolsmith audit` prints the tally.
+
+- Make a stale anchor recoverable without a re-read. Being told "re-read the file if it has changed" cost two turns: one to be told, one to read. When the line content the caller already sent still appears exactly once, the error now hands back the current anchor for that line and says no re-read is needed. Ambiguous matches still ask for a re-read, which is what a re-read is for.
+
+- Report round-trip cost next to token savings. `toolsmith trends` gains a ROUND-TRIP COST section: calls per edited file against the native Read+Edit baseline, calls beyond that baseline, median gap between calls in a session, and failed-call count with its retry cost. Tokens saved by spending model turns the user waits through is not self-evidently a good trade, and the turns were previously invisible.
+
 ## 0.1.59 — 2026-08-12
 
 - Exit when the client is gone instead of spinning. An orphaned MCP server was found burning 100% of a core for its entire 27-minute life, long after the editor that spawned it had quit. The cause was the catch-all `uncaughtException` guard: once the client's read end closed, every reply raised `EPIPE`, the handler logged it and returned, and the next reply raised it again — a loop with no exit. Broken-pipe errors now shut the server down rather than being logged and retried, `stdin` reaching EOF exits, and a `ppid` watchdog (30s, `TOOLSMITH_ORPHAN_CHECK_MS=0` to disable) catches the case where a parent dies holding both pipes open so `stdin` never reaches EOF. A fault-rate backstop exits on any error source firing more than 50 times in 5 seconds, so an unanticipated loop costs a restart instead of a core.

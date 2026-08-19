@@ -11,7 +11,7 @@ import { searchAnchored } from "./search.js"
 import { fileSkeleton, getFunction } from "./structure.js"
 import { symbolReplace } from "./symbol-replace.js"
 import { findAndAnchor } from "./find-anchor.js"
-import { makeTelemetry } from "./telemetry.js"
+import { applyEditCredit, makeTelemetry } from "./telemetry.js"
 
 const DEFAULT_MAX_BYTES = 512 * 1024
 const STRUCTURE_MAX_BYTES = 2 * 1024 * 1024
@@ -115,7 +115,11 @@ export class WorkspaceTools {
       return {
         ...result,
         dryRun,
-        telemetry: makeTelemetry({ operation: "symbol_replace", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId, name, search, replacement, regex, replaceAll, caseSensitive, dryRun }, responseText: JSON.stringify({ ok: result.ok, errors: result.errors, matches: result.matches }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
+        telemetry: applyEditCredit(
+          makeTelemetry({ operation: "symbol_replace", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId, name, search, replacement, regex, replaceAll, caseSensitive, dryRun }, responseText: JSON.stringify({ ok: result.ok, errors: result.errors, matches: result.matches }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
+          this.store,
+          { path: relative, sessionId, workspaceKey: this.workspaceKey, hash: contentHash(before), ok: result.ok, changed: result.changed },
+        ),
       }
     })
   }
@@ -141,7 +145,11 @@ export class WorkspaceTools {
         sessionId,
         beforeHash: contentHash(before),
         afterHash: contentHash(result.content),
-        telemetry: makeTelemetry({ operation: "anchored_edit", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId, edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
+        telemetry: applyEditCredit(
+          makeTelemetry({ operation: "anchored_edit", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId, edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
+          this.store,
+          { path: relative, sessionId, workspaceKey: this.workspaceKey, hash: contentHash(before), ok: result.ok, changed },
+        ),
       }
     })
   }
@@ -203,7 +211,11 @@ export class WorkspaceTools {
         sessionId: file.sessionId || sessionId,
         beforeHash: contentHash(before),
         afterHash: contentHash(result.content),
-        telemetry: makeTelemetry({ operation: "anchored_edit_many:file", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId: file.sessionId || sessionId, edits: file.edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
+        telemetry: applyEditCredit(
+          makeTelemetry({ operation: "anchored_edit_many:file", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId: file.sessionId || sessionId, edits: file.edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
+          this.store,
+          { path: relative, sessionId: file.sessionId || sessionId, workspaceKey: this.workspaceKey, hash: contentHash(before), ok: result.ok, changed },
+        ),
       }
       prepared.push({ absolute, item })
       if (!result.ok) errors.push(...result.errors.map((error) => `${relative}: ${error}`))

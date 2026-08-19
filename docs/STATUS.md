@@ -151,6 +151,10 @@ Multi-host forensics (gauss 7d) found native large-file edits ignore the per-edi
 - Usage audits distinguish live-harness/test MCP calls from real agent/project calls; a passing live harness proves wiring, while non-test call counts show adoption during normal work.
 - Session-log scanning is heuristic: Claude native large-file reads/edits and broad shell reads are hard lost opportunities; Codex `apply_patch` on large files is reported as a candidate, not automatically a mistake.
 - Pi.dev has a real strict live-harness path through `toolsmith pi`; validate it after Pi/model/provider updates because it depends on live model behavior.
+- Savings are credited against one per-(workspace, session, file) ledger shared by the read and edit families, so no sequence of reads, searches and edits on a file can claim more than reading it whole once would have cost. Failed and no-op calls are credited zero and carry `telemetry.noCreditReason`.
+- Historical `usage.jsonl` records written before 0.1.60 still carry the old per-call whole-file credit, so `audit`/`trends` over a window that spans the upgrade blend both models. Compare like-for-like windows after the upgrade.
+- The CLI edit path cannot dedupe against a prior read: each `toolsmith edit` invocation is a fresh process with an empty ledger, so it books first-contact credit. Only the MCP server holds a ledger across calls, and that is where real agent traffic goes.
+- Round-trip cost is now reported next to tokens (`toolsmith trends`). Calls per edited file, calls beyond the native Read+Edit baseline, median inter-call gap, and failed-call count are all measured from the log; the wall-clock figure is an upper bound because a native edit on a very large file often is not a real alternative.
 
 ## Current commits (recent)
 
@@ -186,3 +190,4 @@ End-detection uses brace-counting for brace languages (JS/TS/Rust/Go/Swift/C-fam
 4. ~~Weekly audit postcard~~ — shipped: `toolsmith audit --week` prints prev/this week delta plus biggest missed opportunity.
 5. ~~Add a real Pi.dev live harness~~ — shipped via `scripts/test-harnesses.sh --live-pi` and `toolsmith pi`.
 6. Decide which tokenlean/cozempic pieces belong here, keeping `src/` harness-neutral.
+7. Cut calls per edited file (currently ~9 against a native baseline of ~2). The anchored-recovery hint removes one re-read turn per stale anchor; the next lever is letting a `find_and_anchor` result carry enough context to edit from directly.

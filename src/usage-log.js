@@ -81,6 +81,41 @@ function summarizeArgs(args = {}) {
   return sanitizeValue(args)
 }
 
+// Edit failures were logged as a bare ok:false, so the single biggest speed leak — a
+// double-digit anchored_edit failure rate, each costing a full retry turn — could not be
+// diagnosed after the fact. Classify to a code rather than storing the message: the raw
+// error quotes file content, and usage.jsonl is not a place to accumulate source lines.
+const ERROR_CODES = [
+  [/content mismatch/i, "anchor_content_mismatch"],
+  [/no anchors registered/i, "no_anchors_registered"],
+  [/not found in \d+ current anchors/i, "anchor_stale"],
+  [/must include exact line content/i, "anchor_content_missing"],
+  [/must reference exactly one line/i, "anchor_multiline"],
+  [/is malformed/i, "anchor_malformed"],
+  [/missing in edit/i, "anchor_missing"],
+  [/endAnchor must not precede/i, "anchor_order"],
+  [/edits overlap/i, "edits_overlap"],
+  [/unsupported edit type/i, "bad_edit_type"],
+  [/symbol not found/i, "symbol_not_found"],
+  [/search not found/i, "search_not_found"],
+  [/invalid regex|regex pattern too long|catastrophic/i, "bad_regex"],
+  [/duplicate file entry/i, "duplicate_file"],
+  [/workspace mismatch/i, "workspace_mismatch"],
+  [/must be a non-empty array|must contain at most/i, "bad_arguments"],
+  [/ENOENT|no such file/i, "missing_file"],
+  [/outside|denied|EACCES/i, "path_denied"],
+]
+
+export function classifyErrors(errors) {
+  if (!Array.isArray(errors) || errors.length === 0) return undefined
+  const codes = new Set()
+  for (const error of errors) {
+    const message = String(error?.message || error || "")
+    codes.add(ERROR_CODES.find(([pattern]) => pattern.test(message))?.[1] || "other")
+  }
+  return [...codes]
+}
+
 function summarizeResult(result = {}) {
   const structured = result.structuredContent || result.structured_content || result.details || {}
   const files = Array.isArray(structured.files) ? structured.files : []
@@ -95,6 +130,8 @@ function summarizeResult(result = {}) {
     matchesCount: Array.isArray(structured.matches) ? structured.matches.length : (typeof structured.matches === "number" ? structured.matches : undefined),
     appliedCount: Array.isArray(structured.applied) ? structured.applied.length : (files.length ? files.reduce((sum, file) => sum + (file.applied?.length || 0), 0) : undefined),
     filesCount: files.length || undefined,
+    errorCodes: classifyErrors(structured.errors) || classifyErrors(files.flatMap((file) => file.errors || [])),
+    noCreditReason: telemetry?.noCreditReason,
     telemetry,
   }
   return Object.fromEntries(Object.entries(base).filter(([, value]) => value !== undefined))
@@ -112,6 +149,10 @@ function aggregateTelemetry(fileTelemetries) {
     estimatedResponseTokens: fileTelemetries.reduce((sum, telemetry) => sum + (telemetry.estimatedResponseTokens || 0), 0),
     estimatedTokensAvoided: fileTelemetries.reduce((sum, telemetry) => sum + (telemetry.estimatedTokensAvoided || 0), 0),
     anchorCount: fileTelemetries.reduce((sum, telemetry) => sum + (telemetry.anchorCount || 0), 0),
+    // Only when the whole batch earned nothing — a partial batch did real work.
+    noCreditReason: fileTelemetries.every((telemetry) => telemetry.noCreditReason)
+      ? fileTelemetries[0].noCreditReason
+      : undefined,
   }
 }
 
@@ -304,11 +345,11 @@ export function summarizeUsage(records) {
     estimatedFullTokens: 0,
     tokensByVersion: {},
     agentEstimatedTokensAvoided: 0,
-    // Read-family savings (file_skeleton/get_function/anchored_read/_search/find_and_anchor)
-    // use a defensible counterfactual: the agent really would have read the whole file.
-    // Edit-family savings (anchored_edit/_many/symbol_replace) credit the whole pre-edit
-    // file, which overstates — a native edit transfers only the changed region — so they're
-    // tracked separately and kept OUT of the headline number rather than inflating it.
+    // Both families now settle against one per-(workspace,session,file) ledger, so a file
+    // can never be credited more than reading it once would have cost — no matter how many
+    // reads, searches and edits touch it. They stay split because the read family's
+    // counterfactual is solid (the agent really would have loaded the file) while the edit
+    // family's is weaker (a native edit transfers only the changed region).
     readTokensAvoided: 0,
     editTokensAvoided: 0,
     agentReadTokensAvoided: 0,
@@ -323,6 +364,10 @@ export function summarizeUsage(records) {
     agentEditCalls: 0,
     changedCalls: 0,
     agentChangedCalls: 0,
+    // A failed call is not neutral: it buys nothing and costs the agent a full retry turn.
+    agentFailedCalls: 0,
+    errorCodes: {},
+    noCredit: {},
     firstTs: records[0]?.ts,
     lastTs: records.at(-1)?.ts,
     latestStartupTs: null,
@@ -418,6 +463,14 @@ export function summarizeUsage(records) {
       if (/edit|replace/.test(record.tool || "")) summary.editCalls++
       if (record.result?.changed) summary.changedCalls++
       if (!harness && /edit|replace/.test(record.tool || "")) summary.agentEditCalls++
+      if (!harness && (record.error || record.result?.isError)) {
+        summary.agentFailedCalls++
+        for (const code of record.result?.errorCodes || ["unclassified"]) {
+          summary.errorCodes[code] = (summary.errorCodes[code] || 0) + 1
+        }
+      }
+      const noCredit = record.result?.noCreditReason || record.result?.telemetry?.noCreditReason
+      if (!harness && noCredit) summary.noCredit[noCredit] = (summary.noCredit[noCredit] || 0) + 1
       if (!harness && record.result?.changed) summary.agentChangedCalls++
     }
   }
