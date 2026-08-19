@@ -3,7 +3,7 @@ import { constants as fsConstants } from "node:fs"
 import { isUtf8 } from "node:buffer"
 import path from "node:path"
 
-import { AnchorStore } from "./anchors.js"
+import { AnchorStore, renderAnchoredRegions, splitLines } from "./anchors.js"
 import { contentHash } from "./hash.js"
 import { readAnchored } from "./read.js"
 import { applyAnchoredEdits } from "./edit.js"
@@ -110,6 +110,12 @@ export class WorkspaceTools {
       if (result.ok && result.changed && !dryRun) {
         await this.#openAndWrite(absolute, result.content)
         result.anchors = this.store.reconcile(relative, result.content, { sessionId, workspaceKey: this.workspaceKey })
+        result.editedText = renderAnchoredRegions(
+          splitLines(result.content),
+          result.anchors,
+          [{ startIndex: result.symbolStartLine - 1, endIndex: result.symbolEndLine }],
+          { context: 0, maxLines: 24 },
+        )
       }
 
       return {
@@ -135,6 +141,7 @@ export class WorkspaceTools {
       if (result.ok && changed && !dryRun) {
         await this.#openAndWrite(absolute, result.content)
         result.anchors = this.store.reconcile(relative, result.content, { sessionId, workspaceKey: this.workspaceKey })
+        result.editedText = renderAnchoredRegions(splitLines(result.content), result.anchors, result.regions)
       }
 
       return {
@@ -146,7 +153,7 @@ export class WorkspaceTools {
         beforeHash: contentHash(before),
         afterHash: contentHash(result.content),
         telemetry: applyEditCredit(
-          makeTelemetry({ operation: "anchored_edit", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId, edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
+          makeTelemetry({ operation: "anchored_edit", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId, edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors, editedText: result.editedText }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
           this.store,
           { path: relative, sessionId, workspaceKey: this.workspaceKey, hash: contentHash(before), ok: result.ok, changed },
         ),
@@ -212,7 +219,7 @@ export class WorkspaceTools {
         beforeHash: contentHash(before),
         afterHash: contentHash(result.content),
         telemetry: applyEditCredit(
-          makeTelemetry({ operation: "anchored_edit_many:file", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId: file.sessionId || sessionId, edits: file.edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
+          makeTelemetry({ operation: "anchored_edit_many:file", workspaceKey: this.workspaceKey, fullContent: before, requestPayload: { path: relative, sessionId: file.sessionId || sessionId, edits: file.edits, atomic, dryRun }, responseText: JSON.stringify({ applied: result.applied, errors: result.errors, editedText: result.editedText }), beforeContent: before, afterContent: result.content, anchors: result.anchors || [] }),
           this.store,
           { path: relative, sessionId: file.sessionId || sessionId, workspaceKey: this.workspaceKey, hash: contentHash(before), ok: result.ok, changed },
         ),
@@ -259,6 +266,7 @@ export class WorkspaceTools {
         }
         committed.push(entry)
         entry.item.anchors = this.store.reconcile(entry.item.path, entry.item.content, { sessionId: entry.item.sessionId || sessionId, workspaceKey: this.workspaceKey })
+        entry.item.editedText = renderAnchoredRegions(splitLines(entry.item.content), entry.item.anchors, entry.item.regions, { maxLines: 24 })
       }
     }
 

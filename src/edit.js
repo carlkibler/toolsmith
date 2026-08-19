@@ -51,7 +51,22 @@ export function applyAnchoredEdits({ path, content, store, sessionId, workspaceK
   const nextContent = nextLines.join(detectEol(content))
   const nextAnchors = commitAnchors ? store.reconcile(path, nextContent, { sessionId, workspaceKey }) : []
 
-  return { ok: errors.length === 0, content: nextContent, errors, warnings, applied: applied.reverse(), anchors: nextAnchors }
+  return { ok: errors.length === 0, content: nextContent, errors, warnings, applied: applied.reverse(), anchors: nextAnchors, regions: changedRegions(usable) }
+}
+
+// Where each edit's replacement landed in the NEW content. Edits are non-overlapping, so
+// walking them in ascending order and carrying the running line delta gives each one its
+// final position. The caller turns these into anchored lines the agent can edit from
+// directly, which is the difference between chaining edits and re-reading between them.
+function changedRegions(edits) {
+  const regions = []
+  let delta = 0
+  for (const edit of [...edits].sort((left, right) => left.spliceIndex - right.spliceIndex)) {
+    const start = edit.spliceIndex + delta
+    regions.push({ startIndex: start, endIndex: start + edit.replacementLines.length })
+    delta += edit.replacementLines.length - edit.deleteCount
+  }
+  return regions
 }
 
 function compareEditsForSplice(left, right) {

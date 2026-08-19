@@ -140,6 +140,15 @@ function functionSummary(result) {
     ? `Function ${result.name} in ${result.path}: lines ${result.startLine}–${result.endLine}${result.truncated ? "+" : ""}.`
     : `Function ${result.name} not found in ${result.path}.`
 }
+
+// Anchors survive edits by design, so an agent that just edited a file can keep editing
+// it. It used to have no way to know that: the reply was "Applied 1 edit" and nothing
+// else, so the safe move was another read. Hand back the lines that actually changed and
+// say the rest still holds.
+function continuationBlock(result) {
+  if (!result.ok || !result.editedText) return ""
+  return `\n\nChanged lines, ready to edit again (your other anchors for this file are still valid — continue without re-reading):\n${result.editedText}`
+}
 if (process.env.TOOLSMITH_USAGE_LOG === "0" && verboseOutput()) process.stderr.write("[toolsmith-mcp] usage logging disabled (TOOLSMITH_USAGE_LOG=0)\n")
 
 // Minimal MCP stdio server — newline-delimited JSON-RPC 2.0
@@ -374,7 +383,7 @@ registerTool(
   "anchored_edit",
   {
     title: "Anchored Edit",
-    description: "Large file (>200 lines): default edit after anchored_read, anchored_search, find_and_anchor, or get_function. Validates the current file before writing. Use the same sessionId and copy full line references exactly. Anchor before alteration.",
+    description: "Large file (>200 lines): default edit after anchored_read, anchored_search, find_and_anchor, or get_function. Validates the current file before writing. Use the same sessionId and copy full line references exactly. Anchors survive edits — afterwards keep using the anchors you already hold plus the changed lines this returns, and do not re-read the file. Anchor before alteration.",
     inputSchema: {
       type: "object",
       properties: {
@@ -393,9 +402,9 @@ registerTool(
     const warningLines = (result.warnings || []).map((w) => `warning: ${w}`)
     if (envEnabled(process.env.TOOLSMITH_DEBUG)) for (const w of warningLines) process.stderr.write(`[toolsmith-mcp] ${w}\n`)
     const summary = result.ok
-      ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}${result.changed ? "" : " (no content change)"}.${warningLines.length ? `\n${warningLines.join("\n")}` : ""}`
+      ? `${result.dryRun ? "Would apply" : "Applied"} ${result.applied.length} anchored edit(s) to ${result.path}${result.changed ? "" : " (no content change)"}.${warningLines.length ? `\n${warningLines.join("\n")}` : ""}${continuationBlock(result)}`
       : `Anchored edit failed for ${result.path}:\n${result.errors.join("\n")}`
-    return { content: [{ type: "text", text: summary }], structuredContent: adapterResult(result, summary), isError: !result.ok }
+    return mcpToolResult(result, summary, { isError: !result.ok, nextAction: result.ok ? "continue editing with the anchors you already hold; only the lines above changed." : "fix the anchor using the guidance above, then retry — a re-read is only needed if the hint says so." })
   },
 )
 
@@ -435,9 +444,9 @@ registerTool(
     if (envEnabled(process.env.TOOLSMITH_DEBUG)) for (const w of warningLines) process.stderr.write(`[toolsmith-mcp] ${w}\n`)
     const edited = result.files.reduce((sum, file) => sum + (file.applied?.length || 0), 0)
     const summary = result.ok
-      ? `${result.dryRun ? "Would apply" : "Applied"} ${edited} anchored edit(s) across ${result.files.length} file(s).${warningLines.length ? `\n${warningLines.join("\n")}` : ""}`
+      ? `${result.dryRun ? "Would apply" : "Applied"} ${edited} anchored edit(s) across ${result.files.length} file(s).${warningLines.length ? `\n${warningLines.join("\n")}` : ""}${result.files.map((file) => file.editedText ? `\n\n${file.path} — changed lines, ready to edit again:\n${file.editedText}` : "").join("")}`
       : `Multi-file anchored edit failed:\n${result.errors.join("\n")}`
-    return { content: [{ type: "text", text: summary }], structuredContent: adapterResult(result, summary), isError: !result.ok }
+    return mcpToolResult(result, summary, { isError: !result.ok, nextAction: result.ok ? "continue editing with the anchors you already hold; only the lines above changed." : "fix the failing anchors using the guidance above, then retry." })
   },
 )
 

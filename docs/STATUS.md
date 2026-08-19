@@ -154,6 +154,7 @@ Multi-host forensics (gauss 7d) found native large-file edits ignore the per-edi
 - Savings are credited against one per-(workspace, session, file) ledger shared by the read and edit families, so no sequence of reads, searches and edits on a file can claim more than reading it whole once would have cost. Failed and no-op calls are credited zero and carry `telemetry.noCreditReason`.
 - Historical `usage.jsonl` records written before 0.1.60 still carry the old per-call whole-file credit, so `audit`/`trends` over a window that spans the upgrade blend both models. Compare like-for-like windows after the upgrade.
 - The CLI edit path cannot dedupe against a prior read: each `toolsmith edit` invocation is a fresh process with an empty ledger, so it books first-contact credit. Only the MCP server holds a ledger across calls, and that is where real agent traffic goes.
+- Anchors survive edits (LCS reconcile keeps 99.8% of them across a typical change), so an anchor captured before an edit still resolves after it. Edits return the changed region anchored so the agent can chain edits without re-reading; the rest of its anchors stay valid.
 - Round-trip cost is now reported next to tokens (`toolsmith trends`). Calls per edited file, calls beyond the native Read+Edit baseline, median inter-call gap, and failed-call count are all measured from the log; the wall-clock figure is an upper bound because a native edit on a very large file often is not a real alternative.
 
 ## Current commits (recent)
@@ -190,4 +191,5 @@ End-detection uses brace-counting for brace languages (JS/TS/Rust/Go/Swift/C-fam
 4. ~~Weekly audit postcard~~ — shipped: `toolsmith audit --week` prints prev/this week delta plus biggest missed opportunity.
 5. ~~Add a real Pi.dev live harness~~ — shipped via `scripts/test-harnesses.sh --live-pi` and `toolsmith pi`.
 6. Decide which tokenlean/cozempic pieces belong here, keeping `src/` harness-neutral.
-7. Cut calls per edited file (currently ~9 against a native baseline of ~2). The anchored-recovery hint removes one re-read turn per stale anchor; the next lever is letting a `find_and_anchor` result carry enough context to edit from directly.
+7. Watch calls per edited file after the post-edit continuation change. Baseline before it: 10.1 calls per edited (session, file) unit against a native equivalent of ~4.9. Of that, 1,863 calls were post-edit navigation on a file the session had already navigated — the removable part. If the change lands fully that projects to ~6.5; at half adoption, ~8.3. Re-measure with `toolsmith trends` over a window that starts after the upgrade.
+8. The remaining navigation looks like genuine exploration, not tool overhead: consecutive reads on one file are forward jumps (p50 160 lines) and backward jumps, not sequential paging. Only 69 of 690 were re-reads inside a window already fetched. Do not optimise this without new evidence.

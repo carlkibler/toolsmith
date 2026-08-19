@@ -223,3 +223,37 @@ function sameHashes(left, right) {
   if (left.length !== right.length) return false
   return left.every((value, index) => value === right[index])
 }
+
+// Render just the lines an edit touched, anchored and ready to edit again. An edit used
+// to answer "Applied 1 edit" and nothing else, so the agent's only way to make a second
+// change was to re-read the file — 60% of all navigation happened after the first edit.
+// Anchors survive edits by design (LCS reconcile), so the agent's other references are
+// still good; this hands back the one part that genuinely changed.
+export function renderAnchoredRegions(lines, anchors, regions, { context = 3, maxLines = 40 } = {}) {
+  if (!Array.isArray(regions) || regions.length === 0) return ""
+
+  const spans = regions
+    .map(({ startIndex, endIndex }) => ({
+      start: Math.max(0, startIndex - context),
+      end: Math.min(lines.length, Math.max(endIndex, startIndex + 1) + context),
+    }))
+    .sort((left, right) => left.start - right.start)
+
+  const merged = []
+  for (const span of spans) {
+    const last = merged[merged.length - 1]
+    if (last && span.start <= last.end) last.end = Math.max(last.end, span.end)
+    else merged.push({ ...span })
+  }
+
+  // Share the line budget across regions so one big edit can't starve the others.
+  const budget = Math.max(1, Math.floor(maxLines / merged.length))
+  const out = []
+  for (const [index, span] of merged.entries()) {
+    if (index > 0) out.push("---")
+    const end = Math.min(span.end, span.start + budget)
+    for (let line = span.start; line < end; line += 1) out.push(formatAnchoredLine(anchors[line], lines[line]))
+    if (end < span.end) out.push(`… ${span.end - end} more line(s) in this region`)
+  }
+  return out.join("\n")
+}
